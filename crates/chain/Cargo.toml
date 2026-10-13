@@ -1,0 +1,9 @@
+[package]
+name = "dwes-chain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dwes-core = { path = "../core" }
+dwes-storage = { path = "../storage" }
+serde = { workspace = true }

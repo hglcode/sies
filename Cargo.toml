@@ -1,0 +1,17 @@
+[workspace]
+members = ["crates/core", "crates/storage", "crates/chain", "crates/api"]
+resolver = "2"
+
+# 统一管理工作区的依赖版本和 Rust 版本
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.0"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# 在这里统一管理依赖，子 crate 中可以使用 { workspace = true } 引入
+rust_decimal = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+anyhow = "1"

@@ -1,0 +1,8 @@
+[package]
+name = "dwes-storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dwes-core = { path = "../core" }
+anyhow = { workspace = true }
