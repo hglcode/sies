@@ -14,4 +14,5 @@ license = "MIT OR Apache-2.0"
 rust_decimal = "1"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+rand = "0"
 anyhow = "1"
