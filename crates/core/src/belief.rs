@@ -13,18 +13,19 @@ pub enum BeliefError {
 }
 
 /// 统一的信念/结果表达 (预测与投票的底层抽象)
-///
-/// - 预测场景: 连续概率分布 (如 [0.7, 0.3])
-/// - 投票场景: 退化的离散分布 / One-hot (如 [1.0, 0.0])
 #[derive(Debug, Clone, PartialEq)]
 pub struct Belief {
-    /// 分配给各个互斥选项的权重/概率向量
     allocations: Vec<Decimal>,
 }
 
 impl Belief {
     /// 归一化校验的容差阈值 (1e-9)
-    const NORMALIZATION_TOLERANCE: Decimal = Decimal::new(1, 9);
+    /// 注意: 不使用 const 以避免 rust_decimal 版本间的 const fn 兼容性问题
+    #[inline]
+    fn normalization_tolerance() -> Decimal {
+        // 精确表示 0.000000001，无浮点转换
+        Decimal::new(1, 9)
+    }
 
     /// 从原始分配向量创建 Belief，并进行严格校验
     pub fn new(allocations: Vec<Decimal>) -> Result<Self, BeliefError> {
@@ -40,11 +41,10 @@ impl Belief {
 
         let sum: Decimal = allocations.iter().sum();
         let diff = (sum - Decimal::ONE).abs();
-        if diff > Self::NORMALIZATION_TOLERANCE {
-            return Err(BeliefError::NotNormalized {
-                sum,
-                tolerance: Self::NORMALIZATION_TOLERANCE,
-            });
+        let tolerance = Self::normalization_tolerance();
+
+        if diff > tolerance {
+            return Err(BeliefError::NotNormalized { sum, tolerance });
         }
 
         Ok(Self { allocations })
@@ -56,17 +56,15 @@ impl Belief {
             return Err(BeliefError::EmptyAllocations);
         }
         if choice_index >= num_options {
-            // 复用 NotNormalized 或可新增 OutOfBounds 错误，此处简化处理
             return Err(BeliefError::NotNormalized {
                 sum: Decimal::ZERO,
-                tolerance: Self::NORMALIZATION_TOLERANCE,
+                tolerance: Self::normalization_tolerance(),
             });
         }
 
         let mut allocs = vec![Decimal::ZERO; num_options];
         allocs[choice_index] = Decimal::ONE;
 
-        // One-hot 天然满足归一化，直接构造避免重复校验
         Ok(Self {
             allocations: allocs,
         })
