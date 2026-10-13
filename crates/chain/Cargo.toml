@@ -10,3 +10,6 @@ dwes-storage = { path = "../storage" }
 postcard = { version = "1", features = ["alloc"] }
 serde = { workspace = true }
 sparse-merkle-tree = { version = "0", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+rust_decimal = { workspace = true }

@@ -168,6 +168,7 @@ dependencies = [
  "dwes-core",
  "dwes-storage",
  "postcard",
+ "rust_decimal",
  "serde",
  "sparse-merkle-tree",
 ]
