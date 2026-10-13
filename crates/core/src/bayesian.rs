@@ -1,9 +1,9 @@
-use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
-use thiserror::Error;
-
 use crate::belief::Belief;
 use crate::scoring::{Scorer, ScoringError, ScoringRule};
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// 贝叶斯更新器相关错误
 #[derive(Debug, Error, PartialEq)]
@@ -15,7 +15,7 @@ pub enum BayesianError {
 }
 
 /// 参与者的信誉状态 (基于 Beta 分布)
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BetaState {
     /// 成功/准确的伪计数
     alpha: Decimal,
@@ -60,6 +60,42 @@ impl BetaState {
     /// 这是 Thompson Sampling 在确定性场景下的最佳近似。
     pub fn expected_weight(&self) -> Decimal {
         self.alpha / (self.alpha + self.beta)
+    }
+
+    /// 转换为固定长度字节表示，绕过 Postcard 对 Decimal 的不兼容
+    /// 布局: [alpha_mantissa: i128 LE (16B)] [alpha_scale: u32 LE (4B)]
+    ///       [beta_mantissa:  i128 LE (16B)] [beta_scale:  u32 LE (4B)]
+    /// 总计 40 字节
+    pub fn to_raw_bytes(&self) -> [u8; 40] {
+        let mut buf = [0u8; 40];
+        // rust_decimal 内部表示: mantissa (i128) + scale (u32)
+        // 通过 serde 序列化获取这些值是不可靠的，直接操作内部表示
+        // Decimal::serialize() 返回 [u8; 16] 是 flags+scale+mantissa 的紧凑格式
+        // 我们改用 from_i128_with_scale 的逆运算来安全提取
+
+        // 使用 Decimal 的公开 API 提取 mantissa 和 scale
+        let alpha_mantissa = self.alpha.mantissa();
+        let alpha_scale = self.alpha.scale();
+        let beta_mantissa = self.beta.mantissa();
+        let beta_scale = self.beta.scale();
+
+        buf[0..16].copy_from_slice(&alpha_mantissa.to_le_bytes());
+        buf[16..20].copy_from_slice(&alpha_scale.to_le_bytes());
+        buf[20..36].copy_from_slice(&beta_mantissa.to_le_bytes());
+        buf[36..40].copy_from_slice(&beta_scale.to_le_bytes());
+        buf
+    }
+
+    /// 从固定长度字节恢复 BetaState
+    pub fn from_raw_bytes(buf: &[u8; 40]) -> Result<Self, BayesianError> {
+        let alpha_mantissa = i128::from_le_bytes(buf[0..16].try_into().unwrap());
+        let alpha_scale = u32::from_le_bytes(buf[16..20].try_into().unwrap());
+        let beta_mantissa = i128::from_le_bytes(buf[20..36].try_into().unwrap());
+        let beta_scale = u32::from_le_bytes(buf[36..40].try_into().unwrap());
+
+        let alpha = Decimal::from_i128_with_scale(alpha_mantissa, alpha_scale);
+        let beta = Decimal::from_i128_with_scale(beta_mantissa, beta_scale);
+        Self::new(alpha, beta)
     }
 }
 

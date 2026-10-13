@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+blake2b-rs = "0"
 dwes-core = { path = "../core" }
 dwes-storage = { path = "../storage" }
+postcard = { version = "1", features = ["alloc"] }
 serde = { workspace = true }
+sparse-merkle-tree = { version = "0", default-features = false, features = ["std"] }
