@@ -1,4 +1,4 @@
-# SIES(决策权重演化系统)
+# SIES(群体智能演化系统)
 
 ## 目录结构
 
@@ -23,10 +23,9 @@ sies/
 │       ├── Cargo.toml
 │       └── src/
 │           └── lib.rs
-├── docs/               # 文档目录
-│   ├── coding/
-│   ├── design/
-│   │   └── arch.md
-│   └── testing/
-└── tests/              # 跨 crate 的集成测试 (Integration Tests)
+└── docs/               # 文档目录
+    ├── coding/
+    ├── design/
+    │   └── arch.md
+    └── testing/
 ```

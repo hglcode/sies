@@ -1,14 +1,8 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+//! SIES Internal RPC Contracts
+
+/// All generated gRPC types and client/server traits for `sies.v1`
+pub mod v1 {
+    tonic::include_proto!("sies.v1");
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use v1::*;

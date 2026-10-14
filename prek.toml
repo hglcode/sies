@@ -4,13 +4,99 @@
 minimum_prek_version = "0.5.5"
 default_stages = ["pre-commit"]
 
+# ============================================================================
+# Stage map (read this first if anything's confusing)
+# ============================================================================
+# pre-commit  -> fast, friendly, auto-fix on formatters (rewrites files in
+#                place and lets the commit proceed with the fixed version)
+# pre-push    -> hard gates. always_run = true so they fire even when no
+#                file types match the current change set
+# commit-msg  -> validate commit message format
+# ============================================================================
+
+# ============================================================================
+# Remote hooks (downloaded once, then cached locally)
+# ============================================================================
+
+# --- [pre-commit] Generic file hygiene (whitespace, EOF, syntax) -----------
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v6.0.0"
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+name = "Trim trailing whitespace"
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+name = "Ensure newline at EOF"
+
+[[repos.hooks]]
+id = "check-yaml"
+name = "Check YAML syntax"
+
+[[repos.hooks]]
+id = "check-json"
+name = "Check JSON syntax"
+
+[[repos.hooks]]
+id = "check-toml"
+name = "Check TOML syntax"
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+name = "Reject merge-conflict markers"
+
+[[repos.hooks]]
+id = "check-added-large-files"
+name = "Reject files larger than 500kB"
+args = ["--maxkb=500"]
+
+[[repos.hooks]]
+id = "detect-private-key"
+name = "Detect committed SSH / PGP private keys"
+
+[[repos.hooks]]
+id = "mixed-line-ending"
+name = "Normalize to LF line endings"
+args = ["--fix=lf"]
+
+[[repos.hooks]]
+id = "no-commit-to-branch"
+name = "Block commits directly on protected branches"
+args = ["--branch=main", "--branch=master"]
+
+# --- [pre-commit] Secret scanning (stronger than detect-private-key) ------
+[[repos]]
+repo = "https://github.com/gitleaks/gitleaks"
+rev = "v8.30.1"
+
+[[repos.hooks]]
+id = "gitleaks"
+name = "gitleaks secret scan"
+
+# --- [pre-commit] Markdown lint --------------------------------------------
+#[[repos]]
+#repo = "https://github.com/igorshubovych/markdownlint-cli"
+#rev = "v0.49.1"
+
+#[[repos.hooks]]
+#id = "markdownlint"
+#name = "markdownlint"
+# Tunable: drop a `.markdownlint.jsonc` at the repo root.
+
+# ============================================================================
+# Local hooks (run via system or prek-managed runtimes)
+# ============================================================================
+
 [[repos]]
 repo = "local"
 
-# ========== pre-commit：自动修复类 ==========
+# --- [pre-commit] Auto-fix formatters & linters ----------------------------
+
 [[repos.hooks]]
 id = "rust-fmt"
-name = "cargo fmt"
+name = "cargo fmt (auto-fix)"
 entry = "cargo fmt --all"
 language = "system"
 types = ["rust"]
@@ -19,7 +105,7 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "cargo-sort-fix"
-name = "cargo sort (fix order)"
+name = "cargo sort (auto-fix)"
 entry = "cargo sort --workspace"
 language = "system"
 types = ["toml"]
@@ -28,7 +114,7 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "sh-fmt"
-name = "shfmt"
+name = "shfmt (auto-fix)"
 entry = "shfmt -i 4 -w"
 language = "system"
 types = ["shell"]
@@ -44,7 +130,7 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "py-fmt"
-name = "ruff format"
+name = "ruff format (auto-fix)"
 entry = "ruff format"
 language = "system"
 types = ["python"]
@@ -52,16 +138,31 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "py-lint"
-name = "ruff check"
+name = "ruff check --fix"
 entry = "ruff check --fix"
 language = "system"
 types = ["python"]
 stages = ["pre-commit"]
 
-# ========== pre-push：门禁校验类 ==========
+# --- [pre-commit] Optional commit-time gate (commented, opt-in) -----------
+# Rust projects typically defer fmt-check and clippy to pre-push. Uncomment
+# the block below if your team prefers stricter gating at commit time — be
+# aware it can feel slow on large workspaces.
+#
+# [[repos.hooks]]
+# id = "rust-meta-check"
+# name = "cargo fmt check + clippy (commit-time)"
+# entry = "sh -c 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings'"
+# language = "system"
+# pass_filenames = false
+# always_run = true
+# stages = ["pre-commit"]
+
+# --- [pre-push] Hard gates (all always_run = true) ------------------------
+
 [[repos.hooks]]
 id = "rust-fmt-check"
-name = "cargo fmt check (push guard)"
+name = "cargo fmt --check"
 entry = "cargo fmt --all -- --check"
 language = "system"
 pass_filenames = false
@@ -69,8 +170,17 @@ always_run = true
 stages = ["pre-push"]
 
 [[repos.hooks]]
+id = "cargo-build"
+name = "cargo build (workspace + all targets)"
+entry = "cargo build --workspace --all-targets"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-push"]
+
+[[repos.hooks]]
 id = "cargo-sort-check"
-name = "cargo sort (check order)"
+name = "cargo sort --check"
 entry = "cargo sort --workspace --check"
 language = "system"
 pass_filenames = false
@@ -79,7 +189,7 @@ stages = ["pre-push"]
 
 [[repos.hooks]]
 id = "cargo-clippy"
-name = "cargo clippy"
+name = "cargo clippy (-D warnings)"
 entry = "cargo clippy --workspace --all-targets -- -D warnings"
 language = "system"
 pass_filenames = false
@@ -88,7 +198,7 @@ stages = ["pre-push"]
 
 [[repos.hooks]]
 id = "cargo-nextest"
-name = "cargo nextest"
+name = "cargo nextest run"
 entry = "cargo nextest run --workspace"
 language = "system"
 pass_filenames = false
@@ -96,8 +206,17 @@ always_run = true
 stages = ["pre-push"]
 
 [[repos.hooks]]
+id = "cargo-machete"
+name = "cargo machete (unused deps)"
+entry = "cargo machete"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-push"]
+
+[[repos.hooks]]
 id = "cargo-deny"
-name = "cargo deny"
+name = "cargo deny (licenses + bans + advisories)"
 entry = "cargo deny check"
 language = "system"
 pass_filenames = false
@@ -106,12 +225,33 @@ stages = ["pre-push"]
 
 [[repos.hooks]]
 id = "cargo-audit"
-name = "cargo audit (dependency vulnerability scan)"
+name = "cargo audit (RUSTSEC vulnerability scan)"
 entry = "cargo audit --workspace"
 language = "system"
 pass_filenames = false
 always_run = true
 stages = ["pre-push"]
+
+[[repos.hooks]]
+id = "cargo-doc"
+name = "cargo doc (verify doc comments compile)"
+# --no-deps skips rebuilding docs for external crates. Drop
+# --document-private-items if you only ship a public API.
+entry = "cargo doc --workspace --no-deps --document-private-items"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-push"]
+
+[[repos.hooks]]
+id = "cargo-msrv"
+name = "cargo msrv verify (minimum supported Rust version)"
+entry = "cargo msrv verify"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-push"]
+# Meaningful only if Cargo.toml has [package] rust-version or a pinned toolchain.
 
 [[repos.hooks]]
 id = "typos-check"
@@ -121,3 +261,26 @@ language = "system"
 pass_filenames = false
 always_run = true
 stages = ["pre-push"]
+
+# --- [commit-msg] Conventional commit message validation ------------------
+# Default: commitlint (Node, the most battle-tested option). prek installs
+# the npm packages into an isolated env per hook run, so no global install
+# is needed. Add a `commitlint.config.js` at the repo root:
+#
+#   // commitlint.config.js
+#   module.exports = { extends: ['@commitlint/config-conventional'] };
+#
+# Pure-Rust alternative: install `cocogitto` and replace the entry below
+# with `cog check`. Not all commit-msg handoffs cooperate perfectly, so
+# commitlint remains the safer default.
+
+[[repos.hooks]]
+id = "commitlint"
+name = "commitlint (conventional commits)"
+entry = "commitlint --edit"
+language = "node"
+additional_dependencies = [
+    "@commitlint/cli@^19.6.0",
+    "@commitlint/config-conventional@^19.6.0",
+]
+stages = ["commit-msg"]

@@ -6,3 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+prost = "0"
+tonic = "0"
+tonic-prost = "0"
+
+[build-dependencies]
+tonic-prost-build = "0"

@@ -1,0 +1,23 @@
+syntax = "proto3";
+package sies.v1;
+
+// 节点/用户唯一标识
+message PeerId {
+  bytes id = 1;
+}
+
+// 重构点 1：为 BeliefVector 增加元数据，支持算法演进
+message BeliefVector {
+  // 如果未来向量维度动态变化，或者使用了不同的量化/编码方式，version 很有用
+  uint32 version = 1;
+  repeated double values = 2;
+}
+
+// 重构点 2：显式定义阶段（Phase），替代隐式的 round 推断
+// 虽然你决定在 RPC 层不区分 predict/vote，但在“轮次(Round)”的语义上，
+// 演化算法通常分为“探索/变异阶段”和“选择/收敛阶段”。
+enum Phase {
+  PHASE_UNSPECIFIED = 0;
+  PHASE_EXPLORATION = 1; // 对应连续的预测/探索
+  PHASE_CONVERGENCE = 2; // 对应离散的投票/收敛
+}

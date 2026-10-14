@@ -1,8 +1,8 @@
 # SIES: 群体智能演化系统 (Swarm Intelligence Evolution System)
 
-### —— 迈向聚合智能的通用群体决策协议
+—— 迈向聚合智能的通用群体决策协议
 
-**版本**: v0.1  
+**版本**: v0.1
 **状态**: 草案 (Draft)
 
 ---

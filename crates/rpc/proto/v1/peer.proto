@@ -1,0 +1,50 @@
+syntax = "proto3";
+package sies.v1;
+
+import "v1/common.proto";
+
+// 对等节点间的控制面与状态同步
+service PeerService {
+  // 增量同步 EventLog (流式返回)
+  rpc SyncEventLog(SyncEventLogRequest) returns (stream Event);
+  // 广播共识决策结果
+  rpc BroadcastDecision(DecisionEvent) returns (Ack);
+}
+
+message SyncEventLogRequest {
+  uint64 from_seq = 1;
+  uint64 to_seq = 2;
+}
+
+// 重构点 1：将黑盒 payload 替换为强类型的统一事件结构
+message Event {
+  uint64 seq = 1;
+  uint64 round = 2;
+
+  // 明确事件的具体类型，利用 oneof 保证类型安全
+  oneof payload {
+    StateCommitment state_commitment = 3; // 其他节点提交的状态
+    // 未来可以轻松扩展其他事件，如：NodeJoined, NodeSlashed 等
+  }
+}
+
+// 提取出来的强类型结构：节点提交的状态及 Verifier 的背书
+message StateCommitment {
+  PeerId node_id = 1;
+  BeliefVector state_vector = 2;
+  bytes verifier_signature = 3; // Verifier 对该 state_vector 的签名
+}
+
+// 重构点 2：决策结果也是基于 BeliefVector 的聚合
+message DecisionEvent {
+  uint64 round = 1;
+  PeerId proposer = 2;
+
+  // 明确决策的数学本质：聚合后的全局信念/共识向量
+  BeliefVector consensus_vector = 3;
+  bytes signature = 4; // 提议者或阈值签名的证明
+}
+
+message Ack {
+  bool success = 1;
+}
