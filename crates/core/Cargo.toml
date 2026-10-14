@@ -2,6 +2,8 @@
 name = "sies-core"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [dependencies]
 rust_decimal = { workspace = true }

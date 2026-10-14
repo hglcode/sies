@@ -1,5 +1,17 @@
 [workspace]
-members = ["crates/api", "crates/chain", "crates/core", "crates/storage"]
+members = [
+    "bins/api",
+    "bins/node",
+    "bins/verifier",
+    "crates/chain",
+    "crates/consensus",
+    "crates/core",
+    "crates/crypto",
+    "crates/executor",
+    "crates/p2p",
+    "crates/rpc",
+    "crates/storage",
+]
 resolver = "2"
 
 # 统一管理工作区的依赖版本和 Rust 版本

@@ -448,12 +448,6 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 [[package]]
 name = "sies-api"
 version = "0.1.0"
-dependencies = [
- "anyhow",
- "sies-chain",
- "sies-core",
- "sies-storage",
-]
 
 [[package]]
 name = "sies-chain"
@@ -469,6 +463,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sies-consensus"
+version = "0.1.0"
+
+[[package]]
 name = "sies-core"
 version = "0.1.0"
 dependencies = [
@@ -477,6 +475,26 @@ dependencies = [
  "serde",
  "thiserror",
 ]
+
+[[package]]
+name = "sies-crypto"
+version = "0.1.0"
+
+[[package]]
+name = "sies-executor"
+version = "0.1.0"
+
+[[package]]
+name = "sies-node"
+version = "0.1.0"
+
+[[package]]
+name = "sies-p2p"
+version = "0.1.0"
+
+[[package]]
+name = "sies-rpc"
+version = "0.1.0"
 
 [[package]]
 name = "sies-storage"
@@ -489,6 +507,10 @@ dependencies = [
  "sies-core",
  "thiserror",
 ]
+
+[[package]]
+name = "sies-verifier"
+version = "0.1.0"
 
 [[package]]
 name = "sparse-merkle-tree"
