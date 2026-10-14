@@ -1,0 +1,4 @@
+host = "127.0.0.1"
+port = 8081
+data_dir = "./data/verifier"
+node_endpoint = "http://127.0.0.1:8080"
