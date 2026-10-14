@@ -6,11 +6,11 @@ use sparse_merkle_tree::{
 
 /// 适配 sparse-merkle-tree v0.6.1 的有状态 Blake2b Hasher
 #[derive(Clone, Default)]
-struct DwesBlake2bHasher {
+struct SiesBlake2bHasher {
     buffer: Vec<u8>,
 }
 
-impl SmtHasher for DwesBlake2bHasher {
+impl SmtHasher for SiesBlake2bHasher {
     fn write_byte(&mut self, b: u8) {
         self.buffer.push(b);
     }
@@ -60,7 +60,7 @@ impl Value for SmtValue {
 
 // ─── StateStore 适配器 ────────────────────────────────────────
 pub struct SmtStateStore {
-    tree: SparseMerkleTree<DwesBlake2bHasher, SmtValue, DefaultStore<SmtValue>>,
+    tree: SparseMerkleTree<SiesBlake2bHasher, SmtValue, DefaultStore<SmtValue>>,
 }
 
 impl SmtStateStore {
