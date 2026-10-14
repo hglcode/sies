@@ -12,7 +12,7 @@ serde = { workspace = true }
 sies-core = { path = "../core" }
 sies-storage = { path = "../storage" }
 sparse-merkle-tree = { version = "0", default-features = false, features = [
-    "std",
+  "std",
 ] }
 
 [dev-dependencies]
