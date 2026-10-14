@@ -46,7 +46,7 @@ impl Scorer {
     /// * `outcome` - 真实结果向量 (通常为 one-hot)
     ///
     /// # Returns
-    /// 得分 (Decimal)。Brier: [0,1]；Log: (-inf, 0]
+    /// 得分 (Decimal)。Brier: [0, 1]；Log: (-inf, 0]
     pub fn score(&self, belief: &Belief, outcome: &Belief) -> Result<Decimal, ScoringError> {
         if belief.num_options() != outcome.num_options() {
             return Err(ScoringError::DimensionMismatch);

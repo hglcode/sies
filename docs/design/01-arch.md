@@ -1,4 +1,4 @@
-# 决策权重演化系统 (DWES) 设计文档 V1.0
+# 群体智能演化系统 (SIES) 设计文档 V1.0
 
 ## 一、 系统愿景与核心理念
 
@@ -79,10 +79,10 @@ $$W_{i,t} = \underbrace{(1 - \rho) \cdot W_{i,t-1}}_{\text{蚁群挥发(时间�
 
 系统采用 Rust Workspace 组织，严格遵循依赖倒置和关注点分离原则：
 
-- **`dwes-core` (核心引擎)**：纯数学与逻辑层。包含 Belief/Outcome 抽象、评分规则、贝叶斯更新器、蚁群衰减算法。**零外部 I/O 依赖**，确保计算的绝对确定性。
-- **`dwes-storage` (存储抽象)**：定义 `StateStore` 和 `EventLog` 等 Trait，解耦核心算法与底层存储实现。
-- **`dwes-chain` (链上/验证层)**：负责状态树（Merkle Trie）、状态转换证明（State Transition）、ZK 电路接口或 Optimistic 欺诈证明逻辑。
-- **`dwes-api` (接口层)**：对外暴露 RPC、CLI 或 RESTful API，处理外部请求并调度核心引擎。
+- **`sies-core` (核心引擎)**：纯数学与逻辑层。包含 Belief/Outcome 抽象、评分规则、贝叶斯更新器、蚁群衰减算法。**零外部 I/O 依赖**，确保计算的绝对确定性。
+- **`sies-storage` (存储抽象)**：定义 `StateStore` 和 `EventLog` 等 Trait，解耦核心算法与底层存储实现。
+- **`sies-chain` (链上/验证层)**：负责状态树（Merkle Trie）、状态转换证明（State Transition）、ZK 电路接口或 Optimistic 欺诈证明逻辑。
+- **`sies-api` (接口层)**：对外暴露 RPC、CLI 或 RESTful API，处理外部请求并调度核心引擎。
 
 ### 2. “只验证”架构设计 (Verifiable Computation)
 

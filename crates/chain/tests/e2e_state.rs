@@ -1,9 +1,9 @@
-use dwes_chain::smt::SmtStateStore;
-use dwes_core::bayesian::{BayesianUpdater, BetaState};
-use dwes_core::belief::Belief;
-use dwes_storage::StateStore;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use sies_chain::smt::SmtStateStore;
+use sies_core::bayesian::{BayesianUpdater, BetaState};
+use sies_core::belief::Belief;
+use sies_storage::StateStore;
 
 /// 端到端：贝叶斯更新 → SMT 持久化 → 读回验证
 #[test]

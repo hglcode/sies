@@ -1,14 +1,14 @@
 [package]
-name = "dwes-storage"
+name = "sies-storage"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-dwes-core = { path = "../core" }
 anyhow = { workspace = true }
-thiserror = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
 rust_decimal = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+sies-core = { path = "../core" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

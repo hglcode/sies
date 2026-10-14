@@ -1,15 +1,17 @@
 [package]
-name = "dwes-chain"
+name = "sies-chain"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 blake2b-rs = "0"
-dwes-core = { path = "../core" }
-dwes-storage = { path = "../storage" }
-postcard = { version = "1", features = ["alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 serde = { workspace = true }
-sparse-merkle-tree = { version = "0", default-features = false, features = ["std"] }
+sies-core = { path = "../core" }
+sies-storage = { path = "../storage" }
+sparse-merkle-tree = { version = "0", default-features = false, features = [
+    "std",
+] }
 
 [dev-dependencies]
 rust_decimal = { workspace = true }

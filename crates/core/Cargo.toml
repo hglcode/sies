@@ -1,5 +1,5 @@
 [package]
-name = "dwes-core"
+name = "sies-core"
 version.workspace = true
 edition.workspace = true
 

@@ -1,11 +1,11 @@
-//! DWES Storage Abstraction Layer
+//! SIES Storage Abstraction Layer
 //!
 //! Defines `StateStore` and `EventLog` traits to decouple core algorithms
 //! from underlying storage implementations (in-memory, SMT-backed, etc.).
 
-use dwes_core::bayesian::BetaState;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use sies_core::bayesian::BetaState;
 use thiserror::Error;
 
 // ---------------------------------------------------------------------------

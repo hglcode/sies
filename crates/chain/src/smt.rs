@@ -1,5 +1,5 @@
-use dwes_core::bayesian::BetaState;
-use dwes_storage::{StateStore, StorageError};
+use sies_core::bayesian::BetaState;
+use sies_storage::{StateStore, StorageError};
 use sparse_merkle_tree::{
     H256, SparseMerkleTree, default_store::DefaultStore, traits::Hasher as SmtHasher, traits::Value,
 };
@@ -21,7 +21,7 @@ impl SmtHasher for DwesBlake2bHasher {
 
     fn finish(self) -> H256 {
         let mut hasher = blake2b_rs::Blake2bBuilder::new(32)
-            .personal(b"dwes-smt-hash!")
+            .personal(b"sies-smt-hash!")
             .build();
         hasher.update(&self.buffer);
         let mut buf = [0u8; 32];
@@ -33,7 +33,7 @@ impl SmtHasher for DwesBlake2bHasher {
 /// 辅助函数：对任意数据执行单次哈希（用于 key 生成和 value 哈希）
 fn blake2b_hash(data: &[u8]) -> H256 {
     let mut hasher = blake2b_rs::Blake2bBuilder::new(32)
-        .personal(b"dwes-smt-hash!")
+        .personal(b"sies-smt-hash!")
         .build();
     hasher.update(data);
     let mut buf = [0u8; 32];
@@ -73,7 +73,7 @@ impl SmtStateStore {
     /// 将 user_id 转换为 SMT 的 256-bit key（使用独立 personalization 避免与树内哈希冲突）
     fn user_key(user_id: u64) -> H256 {
         let mut hasher = blake2b_rs::Blake2bBuilder::new(32)
-            .personal(b"dwes-state-key")
+            .personal(b"sies-state-key")
             .build();
         hasher.update(&user_id.to_le_bytes());
         let mut buf = [0u8; 32];

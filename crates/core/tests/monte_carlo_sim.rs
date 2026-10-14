@@ -5,11 +5,11 @@
 //!
 //! 使用固定种子 LCG PRNG 确保完全可复现、零外部依赖。
 
-use dwes_core::bayesian::{BayesianUpdater, BetaState};
-use dwes_core::belief::Belief;
-use dwes_core::decay::PheromoneDecay;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use sies_core::bayesian::{BayesianUpdater, BetaState};
+use sies_core::belief::Belief;
+use sies_core::decay::PheromoneDecay;
 
 // ─── 确定性 PRNG (线性同余) ──────────────────────────────────────
 
