@@ -7,10 +7,12 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-rust_decimal = { workspace = true }
+crc32fast = { workspace = true }
+postcard = { workspace = true }
+rust_decimal = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 sies-core = { path = "../core" }
 thiserror = { workspace = true }
-
 [dev-dependencies]
 serde_json = { workspace = true }
+tempfile = { workspace = true }
