@@ -1,0 +1,5 @@
+[default]
+extend-ignore-identifiers-re = [
+    # 忽略所有包含 sies 的标识符（不区分大小写）
+    "(?i)sies.*"
+]

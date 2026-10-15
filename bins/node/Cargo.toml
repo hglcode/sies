@@ -6,8 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
 sies-infra.workspace = true
 tokio = { workspace = true, features = ["full"] }
-serde = { workspace = true, features = ["derive"] }
 tracing.workspace = true
-anyhow.workspace = true

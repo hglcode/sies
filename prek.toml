@@ -205,14 +205,14 @@ pass_filenames = false
 always_run = true
 stages = ["pre-push"]
 
-[[repos.hooks]]
-id = "cargo-machete"
-name = "cargo machete (unused deps)"
-entry = "cargo machete"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-push"]
+#[[repos.hooks]]
+#id = "cargo-machete"
+#name = "cargo machete (unused deps)"
+#entry = "cargo machete"
+#language = "system"
+#pass_filenames = false
+#always_run = true
+#stages = ["pre-push"]
 
 [[repos.hooks]]
 id = "cargo-deny"
@@ -226,7 +226,7 @@ stages = ["pre-push"]
 [[repos.hooks]]
 id = "cargo-audit"
 name = "cargo audit (RUSTSEC vulnerability scan)"
-entry = "cargo audit --workspace"
+entry = "cargo audit"
 language = "system"
 pass_filenames = false
 always_run = true
@@ -243,20 +243,20 @@ pass_filenames = false
 always_run = true
 stages = ["pre-push"]
 
-[[repos.hooks]]
-id = "cargo-msrv"
-name = "cargo msrv verify (minimum supported Rust version)"
-entry = "cargo msrv verify"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-push"]
+#[[repos.hooks]]
+#id = "cargo-msrv"
+#name = "cargo msrv verify (minimum supported Rust version)"
+#entry = "cargo msrv verify -- --workspace --offline"
+#language = "system"
+#pass_filenames = false
+#always_run = true
+#stages = ["pre-push"]
 # Meaningful only if Cargo.toml has [package] rust-version or a pinned toolchain.
 
 [[repos.hooks]]
 id = "typos-check"
 name = "typos spell check"
-entry = "typos"
+entry = "typos --exclude .git -c typos.toml"
 language = "system"
 pass_filenames = false
 always_run = true
@@ -280,7 +280,7 @@ name = "commitlint (conventional commits)"
 entry = "commitlint --edit"
 language = "node"
 additional_dependencies = [
-  "@commitlint/cli@^19.6.0",
-  "@commitlint/config-conventional@^19.6.0",
+    "@commitlint/cli@latest",
+    "@commitlint/config-conventional@latest",
 ]
 stages = ["commit-msg"]

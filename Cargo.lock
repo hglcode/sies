@@ -1139,9 +1139,7 @@ version = "0.1.0"
 dependencies = [
  "blake2b-rs",
  "hex",
- "postcard",
  "rust_decimal",
- "serde",
  "sies-core",
  "sies-storage",
  "sparse-merkle-tree",
@@ -1223,7 +1221,6 @@ dependencies = [
 name = "sies-storage"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "crc32fast",
  "postcard",
  "rust_decimal",

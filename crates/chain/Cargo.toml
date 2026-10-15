@@ -7,16 +7,16 @@ license.workspace = true
 
 [dependencies]
 blake2b-rs = "0"
-postcard = { workspace = true }
-serde = { workspace = true }
+hex = { workspace = true }
+#postcard = { workspace = true }
+#serde = { workspace = true }
 sies-core = { path = "../core" }
 sies-storage = { path = "../storage" }
 sparse-merkle-tree = { version = "0", default-features = false, features = [
-  "std",
+    "std",
 ] }
-tracing = { workspace = true }
 thiserror = { workspace = true }
-hex = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 rust_decimal = { workspace = true }
