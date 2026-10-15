@@ -1,6 +1,6 @@
 [workspace]
 members = [
-  "bins/api",
+  "bins/gateway",
   "bins/node",
   "bins/verifier",
   "crates/chain",
