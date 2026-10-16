@@ -17,6 +17,13 @@ pub fn sample_entry(seq: u64, round: u64, user_id: u64, alpha: u64, beta: u64) -
     }
 }
 
+/// Generate `n` sample entries with sequential seq starting from 1.
+pub fn sample_entries(n: u64, round: u64) -> Vec<LedgerEntry> {
+    (0..n)
+        .map(|i| sample_entry(i + 1, round, 0, 1, 1))
+        .collect()
+}
+
 /// Build a batch of sequential entries for multiple users/rounds.
 pub fn sample_batch(count: u64) -> Vec<LedgerEntry> {
     (1..=count)

@@ -1,37 +1,24 @@
 use sies_chain::smt::SmtStateStore;
-use sies_e2e::fixtures::sample_entry;
+use sies_e2e::asserts::{assert_ledger_seq, assert_round_trip_smt, assert_smt_root_eq};
+use sies_e2e::fixtures::sample_entries;
 use sies_e2e::harness::TestNode;
 
 /// Cold-start: an empty ledger must produce the same SMT root as a fresh
-/// in-memory SmtStateStore (genesis state).
+/// SmtStateStore (the genesis root).
 #[test]
 fn cold_start_produces_genesis_smt() {
     let node = TestNode::start().expect("cold start");
-
-    // Empty ledger → seq 0
-    assert_eq!(node.last_seq().unwrap(), 0);
-
-    // SMT root must match a brand-new empty store
-    let genesis_root = SmtStateStore::new().root_hash();
-    assert_eq!(
-        node.smt_root(),
-        genesis_root,
-        "cold-start SMT root diverges from genesis"
-    );
+    let genesis = SmtStateStore::new().root_hash();
+    assert_smt_root_eq(&node, genesis, "cold-start genesis");
 }
 
-/// Restarting a node with an empty ledger must also yield genesis state.
+/// Restart with an empty ledger must still yield the genesis SMT root.
 #[test]
 fn restart_empty_ledger_stays_genesis() {
     let mut node = TestNode::start().expect("cold start");
-    node.restart().expect("restart");
+    let genesis = SmtStateStore::new().root_hash();
 
-    assert_eq!(node.last_seq().unwrap(), 0);
-    assert_eq!(
-        node.smt_root(),
-        SmtStateStore::new().root_hash(),
-        "post-restart empty ledger SMT root diverges from genesis"
-    );
+    assert_round_trip_smt(&mut node, genesis, "post-restart empty ledger");
 }
 
 /// Append entries, rebuild SMT, then restart and verify the rebuilt SMT
@@ -40,26 +27,14 @@ fn restart_empty_ledger_stays_genesis() {
 fn incremental_append_then_restart_preserves_smt_root() {
     let mut node = TestNode::start().expect("cold start");
 
-    // Append 5 sample entries in one batch
-    let entries: Vec<_> = (0..5u64).map(|i| sample_entry(i + 1, 1, 0, 1, 1)).collect();
-    node.append_entries(&entries).expect("append batch");
-    assert_eq!(node.last_seq().unwrap(), 5);
+    node.append_entries(&sample_entries(5, 1))
+        .expect("append batch");
+    assert_ledger_seq(&node, 5, "after append");
 
-    // Rebuild SMT from current ledger
     node.rebuild_smt().expect("rebuild after append");
     let root_before = node.smt_root();
 
-    // Restart (drops in-memory SMT, re-reads ledger from disk)
-    node.restart().expect("restart");
-    assert_eq!(node.last_seq().unwrap(), 5, "ledger seq lost after restart");
-
-    // Rebuild again — must produce identical root
-    node.rebuild_smt().expect("rebuild after restart");
-    assert_eq!(
-        node.smt_root(),
-        root_before,
-        "SMT root diverged after restart + rebuild"
-    );
+    assert_round_trip_smt(&mut node, root_before, "after restart + rebuild");
 }
 
 /// Multiple rebuild cycles without new appends must be idempotent.
@@ -67,15 +42,14 @@ fn incremental_append_then_restart_preserves_smt_root() {
 fn repeated_rebuild_is_idempotent() {
     let mut node = TestNode::start().expect("cold start");
 
-    let entries: Vec<_> = (0..3u64).map(|i| sample_entry(i + 1, 1, 0, 1, 1)).collect();
-    node.append_entries(&entries).expect("append batch");
-
+    node.append_entries(&sample_entries(3, 1))
+        .expect("append batch");
     node.rebuild_smt().expect("first rebuild");
     let root = node.smt_root();
 
     node.rebuild_smt().expect("second rebuild");
-    assert_eq!(node.smt_root(), root);
+    assert_smt_root_eq(&node, root, "second rebuild");
 
     node.rebuild_smt().expect("third rebuild");
-    assert_eq!(node.smt_root(), root, "rebuild not idempotent");
+    assert_smt_root_eq(&node, root, "third rebuild idempotent");
 }

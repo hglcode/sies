@@ -1171,6 +1171,7 @@ name = "sies-e2e"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hex",
  "rust_decimal",
  "sies-chain",
  "sies-storage",
