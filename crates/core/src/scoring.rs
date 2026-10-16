@@ -1,5 +1,4 @@
 use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
 use thiserror::Error;
 
 use crate::belief::{Belief, BeliefError};
@@ -79,17 +78,13 @@ impl Scorer {
                 // 平滑处理: max(p, ε)
                 let smoothed_p = if p < self.epsilon { self.epsilon } else { p };
 
-                // 注意: rust_decimal 没有内置 ln()，这里需要确定性近似
-                // TODO: 替换为确定性泰勒展开/帕德近似实现
-                // 当前使用 f64 转换作为占位符，⚠️ 违反 ADR #2，仅用于测试结构
-                let ln_p = Decimal::from_f64(smoothed_p.to_string().parse::<f64>().unwrap().ln())
-                    .unwrap_or(Decimal::MIN);
+                // 使用确定性 ln(x) 替换 f64::ln()
+                let ln_p = crate::decay::ln_deterministic(smoothed_p)
+                    .map_err(|_| ScoringError::DimensionMismatch)?; // 临时借用，建议后续加 MathError 变体
 
                 score += o * ln_p;
             }
-            // 当 o == 0 时，该项贡献为 0，无需计算 ln(p)
         }
-
         Ok(score)
     }
 }

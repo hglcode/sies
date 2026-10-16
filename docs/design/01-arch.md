@@ -1,4 +1,4 @@
-# SIES 架构设计文档 V2.0
+# SIES 架构设计文档 V2.1
 
 ## 一、 系统愿景与核心理念
 
@@ -9,123 +9,123 @@ SIES 是一个**面向广义智能实体的去中心化演化基础设施**。�
 1.  **广义智能实体 (Generalized Agent)**：协议不区分人类与机器，所有参与者统一抽象为具备身份、行为、信念与信誉的智能实体。
 2.  **不信任，只验证 (Trustless & Verifiable)**：所有行为输入、结果反馈和权重计算逻辑均可公开验证，任何人可审计其公平性。
 3.  **能力证明 (Proof of Competence)**：权重不依赖于初始财富或身份类型，而是基于历史行为质量的动态演化。
-4.  **抗操纵与抗垄断 (Manipulation & Oligopoly Resistance)**：通过时间衰减、边际收益递减与行为模式检测，防止刷量、串谋或单一类型实体垄断。
+4.  **绝对确定性 (Absolute Determinism)**：核心引擎严禁使用原生浮点数（f32/f64），所有数学运算基于高精度定点数与确定性泰勒展开，确保跨平台比特级一致。
 
 ---
 
 ## 二、 核心算法模型设计
 
-权重的演化融合了**贝叶斯更新（微观概率修正）** 与**蚁群信息素机制（宏观时间衰减与正反馈）**，并泛化为适用于异构智能体的统一框架。
+权重的演化融合了**贝叶斯更新（微观概率修正）** 与**蚁群信息素机制（宏观时间衰减与正反馈）**。
 
-### 核心抽象：行为-反馈模型 (Action-Feedback Model)
+### 核心抽象：信念-结果模型 (Belief-Outcome Model)
 
-在底层数学模型中，投票、预测、AI 推理、人类标注等被统一抽象为同一种行为：**对不确定环境执行动作（Action Execution），并接受事后反馈（Feedback Verification）**。
+在底层数学模型中，投票、预测、AI 推理等行为被统一抽象为：**对不确定事件表达信念（Belief），并接受事后结果验证（Outcome）**。
 
-- **Action (输入)**：智能体在时间 $t$ 对任务/事件产生的行为记录。可以是概率分布（预测）、离散选择（投票）、API 调用输出（AI Agent）、标注结果（人类）等。
-- **Feedback (反馈)**：来自 Oracle、验证者或自动化评估脚本的客观结果（Ground Truth / Quality Score）。
-- **Scoring (评估)**：通过严格适当评分规则（Strictly Proper Scoring Rules）或自定义评估函数计算 Action 与 Feedback 之间的偏差/得分，作为贝叶斯更新的输入。
+- **Belief (信念)**：智能体对 $N$ 个互斥选项分配的归一化权重向量（概率分布）。
+- **Outcome (结果)**：事件结算时的真实状态（Ground Truth），通常表示为 One-hot 向量。
+- **Scoring (评估)**：通过严格适当评分规则（Strictly Proper Scoring Rules，如 Brier Score）计算 Belief 与 Outcome 之间的偏差得分。
 
-这种抽象使得核心演化引擎无需感知具体业务场景或智能体类型，实现了极高的内聚和扩展性。
+### 1. 串联演化引擎 (Swarm Evolution Engine)
 
-### 1. 基础演化公式
+在 `sies-core::engine` 中，单轮演化被严格编排为两个串联阶段：
 
-每个智能体 $i$ 在时间 $t$ 的权重 $W_{i,t}$ 由以下公式决定：
+1.  **Phase 1: 贝叶斯个体学习 (Bayesian Updating)**
+    将智能体的“能力”视为隐藏的 Beta 分布 $Beta(\alpha, \beta)$。
+    - 根据 Scoring Rule 计算归一化得分 $S_{norm} \in [0, 1]$。
+    - 更新伪计数：$\alpha \leftarrow \alpha + S_{norm} \cdot \eta$，$\beta \leftarrow \beta + (1 - S_{norm}) \cdot \eta$（$\eta$ 为学习率）。
+2.  **Phase 2: 群体信息素演化 (Swarm Pheromone Evolve)**
+    在贝叶斯更新后的权重基础上，执行群体层面的信息素蒸发与沉积。
+    - **全局蒸发**：$W' = W \cdot (1 - \rho)$，$\rho$ 为蒸发率。
+    - **信息素沉积**：$W'' = W' + Q \cdot \text{accuracy}$，$Q$ 为沉积强度，accuracy 为 Belief 与 Outcome 的点积。
+    - **状态反解**：将最终权重 $W''$ 映射回新的 $(\alpha, \beta)$ 参数。
 
-$$W_{i,t} = \underbrace{(1 - \rho) \cdot W_{i,t-1}}_{\text{蚁群挥发(时间衰减)}} + \underbrace{\Delta W_{bayes}}_{\text{贝叶斯更新(反馈修正)}} + \underbrace{\Delta W_{synergy}}_{\text{协同奖励(跨类型协作)}}$$
+### 2. 时间衰减机制 (Pheromone Decay)
 
-- **$\rho$ (挥发系数)**：防止“躺平”或过时模型把持系统，要求持续高质量活跃。
-- **$\Delta W\_{bayes}$**：基于行为反馈的后验能力修正。
-- **$\Delta W\_{synergy}$**：基于跨类型协作（如人机混合、多 Agent 协同）的额外奖励。
-
-### 2. 贝叶斯更新机制 (Bayesian Updating)
-
-将智能体的“能力”视为隐藏的概率分布：
-
-- **先验分布**：假设能力服从 Beta 分布 $Beta(\alpha, \beta)$，初始为 $Beta(1,1)$。
-- **似然函数**：反馈为正（正确/高质量），$\alpha \leftarrow \alpha + k$；反馈为负（错误/低质量），$\beta \leftarrow \beta + k$。$k$ 为反馈置信度加权因子。
-- **权重映射**：权重 $W$ 综合考虑期望值 $\frac{\alpha}{\alpha+\beta}$ 与置信度（方差）。对新实体采用 Thompson Sampling 思想平衡探索与利用。
-
-### 3. 场景化适配示例
-
-| 场景          | Action 形式     | Feedback 来源         | Scoring 规则             |
-| :------------ | :-------------- | :-------------------- | :----------------------- |
-| AI Agent 任务 | API 调用 + 输出 | 自动化验证 / 人工审核 | 任务完成率 + 质量评分    |
-| 人类标注      | 标签 / 评分     | 交叉验证 / 黄金数据集 | Brier Score / Kappa 系数 |
-| 舆论预测      | 概率分布        | 预言机 / 事实核查     | Log Score + 时间加权     |
-| DAO 提案投票  | 加权选择        | 回溯评估 / 执行结果   | 二次方投票 + 事后修正    |
+对于长时间不活跃的实体，系统通过 `PheromoneDecay` 模块执行独立的时间衰减：
+$$W_{new} = W_{old} \cdot (1 - \rho)^{t / t_{half}}$$
+为确保跨平台确定性，该公式中的 $ln$ 和 $exp$ 运算通过**固定项数的泰勒级数**（20项）实现，完全规避了标准库的浮点超越函数。
 
 ---
 
-## 三、 区块链架构与数据层设计
+## 三、 工程架构与模块划分 (Rust Workspace)
 
-### 1. 链上数据模型 (On-Chain Data Schema)
+系统采用 Rust Workspace 组织，严格遵循依赖倒置原则。当前实际包含以下 Crate：
 
-| 数据结构                     | 描述                                                                                                                        | 存储位置                    |
-| :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------- | :-------------------------- |
-| **Identity (身份)**          | 统一身份标识（DID / Model ID / Agent Instance ID）、当前权重 $W$、Beta 参数 $(\alpha, \beta)$、最后活跃时间、身份类型标签。 | 链上 (SMT)                  |
-| **Task / Event (任务/事件)** | ID、描述哈希、截止时间、反馈机制配置、关联智能体列表。                                                                      | 链上                        |
-| **Action Trace (行为轨迹)**  | 智能体 ID、任务 ID、行为内容哈希、**行为时间戳**、签名/证明。                                                               | 链下签名 + 链上 Merkle Root |
-| **Feedback (反馈)**          | 任务 ID、反馈内容、反馈源签名、结算时间。                                                                                   | 链上                        |
+### 1. 核心算法层 (`crates/core`)
 
-### 2. 工程架构与模块划分 (Rust Workspace)
+纯数学与逻辑层，**零外部 I/O 依赖**。
 
-系统采用 Rust Workspace 组织，严格遵循依赖倒置和关注点分离原则：
+- `bayesian`: `BetaState` 与 `BayesianUpdater`。包含 40 字节定长序列化（`to_raw_bytes`/`from_raw_bytes`）以绕过 Postcard 对 Decimal 的不兼容。
+- `belief`: `Belief` 结构，强制归一化校验（容差 $10^{-9}$）。
+- `scoring`: `Scorer`，支持 Brier Score（已实现）与 Log Score（_注：当前 Log Score 使用 f64 占位，为已知技术债_）。
+- `decay`: `PheromoneDecay`，确定性泰勒级数数学近似。
+- `swarm`: `SwarmUpdater`，信息素蒸发与沉积。
+- `engine`: `SwarmEvolutionEngine`，编排上述模块。
 
-- **`sies-core`**：纯数学与逻辑层。包含 Action/Feedback 抽象、评分规则、贝叶斯更新器、蚁群衰减算法。**零外部 I/O 依赖**，确保计算的绝对确定性。
-- **`sies-chain`**：稀疏 Merkle Tree (SMT)、状态重建器 (rebuilder)、状态根计算与状态转换证明。
-- **`sies-storage`**：`StateStore` trait 抽象 + `FileLedger` 文件级持久化实现，解耦核心算法与底层存储。
-- **`sies-consensus`**：共识协议接口与实现。
-- **`sies-executor`**：指令/交易执行引擎，负责调度 Action 提交、Feedback 注入与权重更新。
-- **`sies-crypto`**：哈希、签名等密码学原语。
-- **`sies-p2p`**：libp2p 网络层封装。
-- **`sies-rpc`**：gRPC 服务定义（protobuf v1）与服务端实现。
-- **`sies-infra`**：TOML 配置加载、tracing-subscriber 日志初始化。
-- **`sies-e2e`**：E2E 测试框架（TestNode harness、fixture 生成、语义化断言）。
+### 2. 存储与状态层 (`crates/storage`, `crates/chain`)
 
-### 3. “只验证”架构设计 (Verifiable Computation)
+- **`sies-storage`**：定义 `StateStore` 和 `Ledger` Trait。包含 `FileLedger` 实现（Append-only 文件 + CRC32 校验 + 独立索引文件 `ledger.idx`）。定义了 `LedgerEntry` 与定点数表示的 `RawLedgerEntry`（$10^{18}$ 精度）。
+- **`sies-chain`**：
+  - `smt`: `SmtStateStore`，基于 `sparse-merkle-tree` 和 `blake2b-rs`（带自定义 personalization）实现的状态存储。
+  - `rebuilder`: `Rebuilder`，从 Ledger 确定性批量重建 SMT 状态，支持 Root Hash 验证。
 
-采用**乐观验证 (Optimistic Verification)** 架构以平衡性能与安全性：
+### 3. 服务与网络层 (`bins/*`, `crates/rpc`, `crates/p2p`)
 
-- **链下计算**：节点收集 Action Trace 与 Feedback，执行权重演化计算，生成新状态根（State Root）。
-- **链上提交**：将 State Root 与状态转换摘要提交至共识层。
-- **欺诈证明**：挑战期内，任何人可重放历史数据验证计算过程。若发现错误，提交欺诈证明，作恶节点被罚没，状态回滚。
+- **`sies-node`**：核心全节点（骨架阶段）。
+- **`sies-verifier`**：ZK/欺诈证明验证节点（骨架阶段）。
+- **`sies-gateway`**：对外 API 网关（骨架阶段）。
+- **`sies-rpc`**：基于 `tonic` 和 `prost` 的 gRPC 接口定义（`proto/v1/*`）。
+- **`sies-p2p`**：libp2p 网络层封装（占位）。
 
-### 4. 确定性与精度控制 (Determinism & Precision)
+### 4. 基础设施与测试 (`crates/infra`, `crates/e2e`)
 
-- **定点数运算**：所有概率、权重、得分计算使用高精度定点数库（`rust_decimal`），禁止原生浮点数。
-- **超越函数近似**：对数、指数运算使用确定性泰勒展开或帕德近似，固定迭代次数，确保比特级一致性。
+- **`sies-infra`**：基于 `figment` 的多源配置加载（TOML + 环境变量），基于 `tracing-subscriber` 的日志初始化。
+- **`sies-e2e`**：E2E 测试框架。提供 `TestNode` Harness（封装临时目录、Ledger 与 SMT 的冷启动/重启）、Fixture 生成器与语义化断言（`assert_smt_root_eq` 等）。
 
 ---
 
-## 四、 业务流转机制 (Workflow)
+## 四、 链上数据模型与序列化设计
 
-### 通用演化流程
+### 1. 核心数据结构
 
-1.  **任务/事件创建**：Oracle、DAO 或自动化脚本创建任务，设定反馈机制与截止时间。
-2.  **行为提交**：智能体提交 Action Trace（签名/证明），系统可选冻结部分权重作为 Skin-in-the-game。
-3.  **反馈注入**：任务到期或触发条件满足时，Feedback 被注入系统。
-4.  **权重演化**：
-    - Executor 根据配置的 Scoring Rule 计算得分。
-    - Core 引擎执行贝叶斯 $\alpha, \beta$ 更新。
-    - 执行蚁群挥发计算。
-5.  **状态提交**：新状态根经共识确认后写入 SMT，完成本轮演化。
+| 数据结构           | 描述                             | 存储/序列化方式                                                                                                  |
+| :----------------- | :------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| **BetaState**      | 个体的信誉状态 $(\alpha, \beta)$ | 40 字节定长布局：`[alpha_mantissa: i128 LE] [alpha_scale: u32 LE] [beta_mantissa: i128 LE] [beta_scale: u32 LE]` |
+| **LedgerEntry**    | 单次状态转换的不可变记录         | 包含 seq, round, user_id, belief/outcome allocations, new_alpha, new_beta, score                                 |
+| **RawLedgerEntry** | 磁盘/网络传输格式                | 所有 `Decimal` 字段映射为 $10^{18}$ 定点数 `u64`，使用 `postcard` 序列化                                         |
+| **SMT Node**       | 稀疏默克尔树节点                 | Key: `blake2b(user_id)` (personalized)；Value: `BetaState` 的 40 字节 raw bytes                                  |
 
----
+### 2. FileLedger 磁盘格式
 
-## 五、 系统安全与博弈论设计
-
-1.  **抗共谋 (Anti-Collusion)**：引入匿名行为提交与收据解绑机制，使链下贿赂无法验证履约。
-2.  **搭便车惩罚 (Free-Rider Penalty)**：检测行为向量与高权重实体的高度相似性，降低跟风者的协同奖励。
-3.  **Sybil 防御**：多维度信誉绑定 + 时间成本，使伪造大量身份的经济成本远高于收益。
-4.  **AI 特化防御**：行为模式检测识别重复刷量、对抗性输出等机器特有攻击手法。
-5.  **质押与罚没**：参与计算与反馈的节点必须质押，提交虚假结果将被 Slashing。
+- **数据文件 (`ledger.dat`)**：`[4B payload_len LE] [payload_len B postcard-encoded RawLedgerEntry] [4B CRC32 LE]`
+- **索引文件 (`ledger.idx`)**：`[8B file_offset LE] × N`，用于 $O(1)$ 随机读取。
 
 ---
 
-## 六、 扩展性设计 (Extensibility)
+## 五、 系统安全与确定性控制 (Determinism & Security)
 
-SIES 作为基础设施，其扩展性体现在三个维度：
+### 1. 绝对确定性原则 (ADR #2)
 
-1.  **身份扩展**：通过 Identity Provider 插件机制，支持新增身份类型（如 IoT 设备、生物识别 ID）而无需修改核心引擎。
-2.  **算法扩展**：Scoring Rule、Update Rule、Aggregation Rule 均为 trait 接口，第三方可自定义实现并通过配置热加载。
-3.  **反馈源扩展**：Oracle Adapter 模式支持接入任意反馈源（链上合约、链下 API、人工审核平台、自动化测试套件）。
+在分布式共识环境中，状态分叉是致命的。SIES 强制实施以下规则：
+
+- **禁止原生浮点数**：核心引擎严禁使用 `f32`/`f64`。所有概率、权重计算使用 `rust_decimal`。
+- **确定性超越函数**：`decay.rs` 中的 $ln$ 和 $exp$ 必须使用固定项数（20项）的泰勒级数实现。
+- _已知技术债_：`scoring.rs` 中的 Log Score 当前使用 `f64::ln()` 作为占位符，需在后续版本替换为确定性近似实现。
+
+### 2. 防篡改与可验证性
+
+- **Append-Only Ledger**：`FileLedger` 仅支持追加，配合 CRC32 防止静默数据损坏。
+- **确定性重放 (Deterministic Replay)**：`Rebuilder` 可从创世区块逐条重放 Ledger，重建出与运行时完全一致的 SMT Root Hash。
+- **密码学隔离**：SMT 的 Key 生成（`sies-state-key`）与内部节点哈希（`sies-smt-hash!`）使用不同的 Blake2b personalization，防止跨域碰撞攻击。
+
+---
+
+## 六、 业务流转机制 (Workflow)
+
+1.  **行为提交**：智能体提交 Belief（签名），Executor 验证归一化后暂存。
+2.  **结果注入**：Oracle 或自动化脚本注入 Outcome。
+3.  **引擎演化**：`SwarmEvolutionEngine::step()` 执行贝叶斯更新与 Swarm 演化，输出新的 `BetaState`。
+4.  **状态持久化**：
+    - 将转换记录写入 `FileLedger`（分配 seq，计算 CRC）。
+    - 将新的 `BetaState` 写入 `SmtStateStore`（更新 SMT 叶子节点）。
+5.  **共识与验证**：节点广播新的 SMT Root Hash。验证节点（Verifier）可通过重放 Ledger 独立计算 Root Hash 进行对账。

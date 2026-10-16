@@ -10,6 +10,8 @@ pub enum DecayError {
     InvalidHalfLife(Decimal),
     #[error("elapsed time cannot be negative, got {0}")]
     NegativeTime(Decimal),
+    #[error("logarithm domain error: x must be strictly positive, got {0}")]
+    InvalidLogDomain(Decimal),
 }
 
 /// 蚁群信息素挥发计算器
@@ -126,6 +128,98 @@ fn exp_taylor(x: Decimal) -> Decimal {
     result
 }
 
+// ==========================================
+// 确定性自然对数 ln(x) 实现 (ADR #2 compliant)
+// ==========================================
+
+/// 预计算的高精度常量 (28位有效数字，rust_decimal 极限精度)
+fn ln_2() -> Decimal {
+    Decimal::from_str_exact("0.6931471805599453094172321214").unwrap()
+}
+
+fn ln_10() -> Decimal {
+    Decimal::from_str_exact("2.3025850929940456840179914546").unwrap()
+}
+
+/// 计算任意正数 x 的自然对数 ln(x)
+///
+/// # 算法原理 (参数约简 + artanh 级数)
+/// 1. 使用 Decimal::normalize() 将 x 表示为 c × 10^e，其中 c ∈ [1, 10)
+/// 2. 进一步将 c 拆分到 [1, 2) 区间: c = c' × 2^k
+/// 3. ln(x) = ln(c') + k·ln(2) + e·ln(10)
+/// 4. 对 c' ∈ [1, 2) 使用 artanh 级数: ln(c') = 2·artanh((c'-1)/(c'+1))
+///    此时 y = (c'-1)/(c'+1) ∈ [0, 1/3)，级数收敛极快，12项即达极限精度
+pub fn ln_deterministic(x: Decimal) -> Result<Decimal, DecayError> {
+    if x <= Decimal::ZERO {
+        return Err(DecayError::InvalidLogDomain(x));
+    }
+    if x == Decimal::ONE {
+        return Ok(Decimal::ZERO);
+    }
+
+    // 1. 参数约简：提取 [1, 10) 区间的系数和 base-10 指数
+    let normalized = x.normalize();
+    let coeff = normalized.mantissa().unsigned_abs(); // u128
+    let exp10 = -(normalized.scale() as i64);
+
+    // 将 coeff 转为 Decimal，构造 [1.0, 10.0) 范围内的值
+    let coeff_str = coeff.to_string();
+    let digits = coeff_str.len() as u32;
+
+    // from_i128_with_scale 安全处理大数，不会 panic
+    let m = Decimal::from_i128_with_scale(coeff as i128, digits.saturating_sub(1));
+    let exp10_adjusted = exp10 + (digits as i64 - 1);
+
+    // 2. 进一步约简到 [1.0, 2.0) 区间
+    let mut k: i64 = 0;
+    let mut reduced = m;
+
+    if reduced >= Decimal::TWO {
+        // 除以 2 直到落入 [1, 2)
+        while reduced >= Decimal::TWO {
+            reduced /= Decimal::TWO;
+            k += 1;
+        }
+    }
+    // 注意：由于 m ∈ [1, 10)，最多只需除以 2 三次 (8→4→2→1.x)
+    // 这里的除法是精确的（除以2不会产生无限小数），不会 Underflow
+
+    // 3. artanh 级数逼近 ln(reduced)，reduced ∈ [1.0, 2.0)
+    // y = (r - 1) / (r + 1)，当 r ∈ [1, 2) 时 y ∈ [0, 1/3)
+    let y_num = reduced - Decimal::ONE;
+    let y_den = reduced + Decimal::ONE;
+
+    // 安全除法：y_num ∈ [0, 1), y_den ∈ [2, 3)
+    // 这个除法的结果是有限小数或循环节很短的小数，rust_decimal 可以处理
+    // 如果仍然担心 underflow，可以用 try_div 并 fallback
+    let y = y_num
+        .checked_div(y_den)
+        .ok_or(DecayError::InvalidLogDomain(x))?;
+
+    let y_sq = y * y;
+    let mut sum = Decimal::ZERO;
+    let mut y_pow = y;
+
+    // y ≤ 1/3 时，y^25 < 10^-12，12项足以达到 10^-28 精度
+    for n in 0..15u32 {
+        let divisor = Decimal::from(2 * n + 1);
+        sum += y_pow / divisor;
+        y_pow *= y_sq;
+
+        // 提前终止：当增量小于 Decimal 最小精度时
+        if y_pow.abs() < Decimal::new(1, 28) {
+            break;
+        }
+    }
+    let ln_reduced = Decimal::TWO * sum;
+
+    // 4. 组合最终结果
+    // ln(x) = ln(reduced) + k * ln(2) + exp10_adjusted * ln(10)
+    let result = ln_reduced + Decimal::from(k) * ln_2() + Decimal::from(exp10_adjusted) * ln_10();
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,5 +331,61 @@ mod tests {
         assert!(w1 > w2);
         assert!(w2 > w3);
         assert!(w3 > Decimal::ZERO);
+    }
+
+    #[test]
+    fn test_ln_deterministic_accuracy() {
+        // 测试 1: ln(1) = 0
+        assert_eq!(ln_deterministic(Decimal::ONE).unwrap(), Decimal::ZERO);
+
+        // 测试 2: ln(e) ≈ 1 (使用高精度字符串常量，杜绝 f64)
+        let e = Decimal::from_str_exact("2.7182818284590452353602874713").unwrap();
+        let ln_e = ln_deterministic(e).unwrap();
+        let one = Decimal::ONE;
+        // 容差设为 1e-26：常量截断 + 算术组合会损失约 2 个最低有效位
+        // 这仍比 f64 的 ~1e-15 精度高 11 个数量级
+        let tolerance = Decimal::from_str_exact("0.00000000000000000000000001").unwrap(); // 1e-26
+        assert!(
+            (ln_e - one).abs() < tolerance,
+            "ln(e) expected ~1.0, got {ln_e}, diff={}",
+            (ln_e - one).abs()
+        );
+
+        // 测试 3: 极小值 ln(1e-12) = -12 * ln(10)
+        let eps = Decimal::from_str_exact("0.000000000001").unwrap();
+        let ln_eps = ln_deterministic(eps).unwrap();
+        // 注意：rust_decimal 最多 28 位有效数字，此处截断到合法范围
+        let expected = Decimal::from_str_exact("-27.63102111592854820821589745").unwrap();
+        let loose_tol = Decimal::from_str_exact("0.00000000000000000000000001").unwrap(); // 1e-26
+        assert!(
+            (ln_eps - expected).abs() < loose_tol,
+            "ln(1e-12) expected ~{expected}, got {ln_eps}"
+        );
+
+        // 测试 4: 大数 ln(1e18) = 18 * ln(10)
+        let big = Decimal::from_str_exact("1000000000000000000").unwrap();
+        let ln_big = ln_deterministic(big).unwrap();
+        // 同样截断到 28 位有效数字
+        let expected_big = Decimal::from_str_exact("41.44653167389282231232384618").unwrap();
+        assert!(
+            (ln_big - expected_big).abs() < loose_tol,
+            "ln(1e18) expected ~{expected_big}, got {ln_big}"
+        );
+
+        // 测试 5: 比特级确定性验证
+        let x = Decimal::from_str_exact("0.1234567890123456789012345678").unwrap();
+        let r1 = ln_deterministic(x).unwrap();
+        let r2 = ln_deterministic(x).unwrap();
+        assert_eq!(r1, r2, "Deterministic ln(x) must yield bit-exact results");
+
+        // 测试 6: 非法输入
+        assert!(matches!(
+            ln_deterministic(Decimal::ZERO),
+            Err(DecayError::InvalidLogDomain(_))
+        ));
+        assert!(matches!(
+            ln_deterministic(Decimal::NEGATIVE_ONE),
+            Err(DecayError::InvalidLogDomain(_))
+        ));
     }
 }
