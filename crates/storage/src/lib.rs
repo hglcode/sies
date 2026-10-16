@@ -182,6 +182,30 @@ pub trait Ledger {
     }
 }
 
+/// Blanket impl: allow `&L` to be used as a read-only [`Ledger`].
+/// Only read methods are delegated; `append` panics at runtime if called
+/// through a shared reference (which should never happen in practice since
+/// `Rebuilder` only calls read methods).
+impl<L: Ledger + ?Sized> Ledger for &L {
+    fn append(&mut self, _entry: &LedgerEntry) -> Result<u64> {
+        Err(StorageError::Backend(
+            "cannot append through shared reference".into(),
+        ))
+    }
+
+    fn read_range(&self, start_seq: u64, end_seq: u64) -> Result<Vec<LedgerEntry>> {
+        (**self).read_range(start_seq, end_seq)
+    }
+
+    fn last_seq(&self) -> Result<u64> {
+        (**self).last_seq()
+    }
+
+    fn read_by_user_round(&self, user_id: UserId, round: u64) -> Result<Vec<LedgerEntry>> {
+        (**self).read_by_user_round(user_id, round)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Module declarations
 // ---------------------------------------------------------------------------

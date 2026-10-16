@@ -7,6 +7,7 @@ members = [
     "crates/consensus",
     "crates/core",
     "crates/crypto",
+    "crates/e2e",
     "crates/executor",
     "crates/infra",
     "crates/p2p",

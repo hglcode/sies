@@ -1167,6 +1167,17 @@ name = "sies-crypto"
 version = "0.1.0"
 
 [[package]]
+name = "sies-e2e"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rust_decimal",
+ "sies-chain",
+ "sies-storage",
+ "tempfile",
+]
+
+[[package]]
 name = "sies-executor"
 version = "0.1.0"
 

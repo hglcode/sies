@@ -280,7 +280,7 @@ name = "commitlint (conventional commits)"
 entry = "commitlint --edit"
 language = "node"
 additional_dependencies = [
-    "@commitlint/cli@latest",
-    "@commitlint/config-conventional@latest",
+  "@commitlint/cli@latest",
+  "@commitlint/config-conventional@latest",
 ]
 stages = ["commit-msg"]
