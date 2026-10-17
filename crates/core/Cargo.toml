@@ -12,3 +12,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
+approx = { workspace = true }

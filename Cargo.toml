@@ -25,6 +25,7 @@ license = "MIT OR Apache-2.0"
 
 # 在这里统一管理依赖，子 crate 中可以使用 { workspace = true } 引入
 [workspace.dependencies]
+approx = "0"
 anyhow = "1"
 crc32fast = "1"
 figment = "0"

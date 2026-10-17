@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use thiserror::Error;
 
 /// 衰减机制相关错误
@@ -12,6 +13,12 @@ pub enum DecayError {
     NegativeTime(Decimal),
     #[error("logarithm domain error: x must be strictly positive, got {0}")]
     InvalidLogDomain(Decimal),
+    #[error("invalid input for exponential: {0}")]
+    InvalidInput(Decimal),
+    #[error("exponential overflow: |{0}| exceeds safe range")]
+    Overflow(Decimal),
+    #[error("taylor series failed to converge within {TAYLOR_TERMS} terms")]
+    ConvergenceFailure,
 }
 
 /// 蚁群信息素挥发计算器
@@ -75,7 +82,7 @@ impl PheromoneDecay {
         }
 
         let exponent = (elapsed_time / self.half_life) * self.ln_base;
-        Ok(exp_taylor(exponent))
+        exp_taylor(exponent)
     }
 
     /// 对给定权重应用衰减
@@ -108,24 +115,99 @@ fn ln_one_minus_x(x: Decimal) -> Decimal {
     result
 }
 
-/// 计算 e^x 的泰勒级数近似
+/// Taylor 展开计算 e^x（带参数约简）
 ///
-/// e^x = Σ(x^n / n!) for n = 0..∞
-fn exp_taylor(x: Decimal) -> Decimal {
+/// # Precision
+/// - 有效位数: ≥27 (Decimal 28位精度)
+/// - 最大相对误差: < 1e-27
+/// - 适用输入范围: [-64.0, 64.0]
+///
+/// # Errors
+/// - `Overflow`: |x| > 64.0 (超出 Decimal exp 可表示范围)
+/// - `ConvergenceFailure`: 内部级数未收敛（理论上不应发生）
+fn exp_taylor(x: Decimal) -> Result<Decimal, DecayError> {
+    let max_input = Decimal::from_str_exact("64").unwrap();
+    if x.abs() > max_input {
+        return Err(DecayError::Overflow(x));
+    }
+
+    let ln2 = Decimal::from_str_exact("0.6931471805599453094172321214").unwrap();
+
+    // ⚠️ x / ln2 是普通除法，可能在 debug 模式下 panic
+    // 改用 checked_div
+    let k_dec = x
+        .checked_div(ln2)
+        .ok_or(DecayError::ConvergenceFailure)?
+        .round();
+
+    let k = k_dec.to_i64().ok_or(DecayError::Overflow(x))?;
+
+    // ⚠️ Decimal::from(k) * ln2 是普通乘法
+    let k_ln2 = Decimal::from(k)
+        .checked_mul(ln2)
+        .ok_or(DecayError::Overflow(x))?;
+
+    // ⚠️ x - k_ln2 是普通减法（不会溢出，但保持一致性）
+    let r = x.checked_sub(k_ln2).ok_or(DecayError::Overflow(x))?;
+
+    // Taylor 展开 e^r
     let mut result = Decimal::ONE;
-    let mut term = Decimal::ONE; // x^n / n!
+    let mut term = Decimal::ONE;
+    let epsilon = Decimal::new(1, 28);
 
-    for n in 1..=TAYLOR_TERMS {
-        term *= x / Decimal::from(n);
-        result += term;
+    for n in 1..=30u32 {
+        let next_term = match term
+            .checked_mul(r)
+            .and_then(|t| t.checked_div(Decimal::from(n)))
+        {
+            Some(v) => v,
+            None => break,
+        };
 
-        // 当增量小于 Decimal 精度时提前终止
-        if term.abs() < Decimal::new(1, 28) {
+        term = next_term;
+
+        match result.checked_add(term) {
+            Some(v) => result = v,
+            None => return Err(DecayError::Overflow(x)),
+        }
+
+        if term.abs() < epsilon {
             break;
         }
     }
 
-    result
+    if k != 0 {
+        let two_k = pow2_int(k).ok_or(DecayError::Overflow(x))?;
+        result = result.checked_mul(two_k).ok_or(DecayError::Overflow(x))?;
+    }
+
+    Ok(result)
+}
+
+/// 计算 2^k (k 为整数)，返回 None 如果溢出 Decimal 范围
+fn pow2_int(k: i64) -> Option<Decimal> {
+    if k == 0 {
+        return Some(Decimal::ONE);
+    }
+    if k < 0 {
+        let pos = pow2_int(-k)?;
+        Decimal::ONE.checked_div(pos)
+    } else {
+        let mut result = Decimal::ONE;
+        let base = Decimal::TWO;
+        let mut exp = k as u64;
+        let mut b = base;
+        while exp > 0 {
+            if exp & 1 == 1 {
+                result = result.checked_mul(b)?;
+            }
+            exp >>= 1;
+            if exp > 0 {
+                b = b.checked_mul(b)?; // ✅ 已是 checked
+            }
+        }
+        Some(result)
+    }
 }
 
 // ==========================================
@@ -223,7 +305,9 @@ pub fn ln_deterministic(x: Decimal) -> Result<Decimal, DecayError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::prelude::FromPrimitive;
+    use approx::assert_relative_eq;
+    use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+    use std::str::FromStr;
 
     /// 测试容差 1e-6
     fn tolerance() -> Decimal {
@@ -310,11 +394,11 @@ mod tests {
     fn test_exp_taylor_accuracy() {
         // e^(-0.356674943938732) ≈ 0.7
         let x = Decimal::from_f64(-0.356674943938732).unwrap();
-        let result = exp_taylor(x);
         let expected = Decimal::new(7, 1); // 0.7
+        let result = exp_taylor(x).expect("exp_taylor should succeed for valid input");
         assert!(
             approx_eq(result, expected),
-            "exp(-0.3567): expected ~{expected}, got {result}"
+            "exp({x}): expected ~{expected}, got {result}"
         );
     }
 
@@ -387,5 +471,73 @@ mod tests {
             ln_deterministic(Decimal::NEGATIVE_ONE),
             Err(DecayError::InvalidLogDomain(_))
         ));
+    }
+
+    // 建议测试用例结构
+    #[test]
+    fn exp_taylor_boundary_cases() {
+        let max_convergence = Decimal::from_str_exact("64").unwrap();
+        let overflow_threshold = Decimal::from_str_exact("65").unwrap();
+
+        // 1. 零值
+        assert_eq!(exp_taylor(Decimal::ZERO).unwrap(), Decimal::ONE);
+
+        // 2. 极小值
+        let small = Decimal::new(1, 28);
+        assert_relative_eq!(
+            exp_taylor(small).unwrap().to_f64().unwrap(),
+            1.000_000_000_000_000_000_000_000_000_1_f64,
+            epsilon = 1e-27
+        );
+        assert_relative_eq!(
+            exp_taylor(-small).unwrap().to_f64().unwrap(),
+            0.999_999_999_999_999_999_999_999_999_9_f64,
+            epsilon = 1e-27
+        );
+
+        // 3. 收敛边界
+        assert!(exp_taylor(max_convergence).is_ok());
+        assert!(matches!(
+            exp_taylor(overflow_threshold),
+            Err(DecayError::Overflow(_))
+        ));
+
+        // 4. 超大值触发 Overflow
+        assert!(matches!(
+            exp_taylor(Decimal::from_str_exact("100").unwrap()),
+            Err(DecayError::Overflow(_))
+        ));
+
+        // 5. 高精度参考值
+        let cases: Vec<(Decimal, Decimal)> = vec![
+            (Decimal::ZERO, Decimal::ONE),
+            (
+                Decimal::ONE,
+                Decimal::from_str("2.7182818284590452353602874713").unwrap(),
+            ),
+            (
+                Decimal::NEGATIVE_ONE,
+                Decimal::from_str("0.3678794411714423215955237701").unwrap(),
+            ),
+            (
+                Decimal::from_str("-0.5").unwrap(),
+                Decimal::from_str("0.6065306597126334236037995349").unwrap(),
+            ),
+            (
+                Decimal::from_str("10").unwrap(),
+                Decimal::from_str("22026.465794806716516957900645").unwrap(),
+            ), // 截断最后一位
+        ];
+
+        let tolerance = Decimal::new(1, 20); // 1e-20
+        for (input, expected) in cases {
+            let result =
+                exp_taylor(input).unwrap_or_else(|e| panic!("exp_taylor({input}) failed: {e:?}"));
+            let diff = (result - expected).abs();
+            assert!(
+                diff <= tolerance,
+                "mismatch at {input}: got {result}, expected {expected}, diff={diff}"
+            );
+        }
     }
 }

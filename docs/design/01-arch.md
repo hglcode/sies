@@ -6,10 +6,10 @@ SIES 是一个**面向广义智能实体的去中心化演化基础设施**。�
 
 **核心设计哲学：**
 
-1.  **广义智能实体 (Generalized Agent)**：协议不区分人类与机器，所有参与者统一抽象为具备身份、行为、信念与信誉的智能实体。
-2.  **不信任，只验证 (Trustless & Verifiable)**：所有行为输入、结果反馈和权重计算逻辑均可公开验证，任何人可审计其公平性。
-3.  **能力证明 (Proof of Competence)**：权重不依赖于初始财富或身份类型，而是基于历史行为质量的动态演化。
-4.  **绝对确定性 (Absolute Determinism)**：核心引擎严禁使用原生浮点数（f32/f64），所有数学运算基于高精度定点数与确定性泰勒展开，确保跨平台比特级一致。
+1. **广义智能实体 (Generalized Agent)**：协议不区分人类与机器，所有参与者统一抽象为具备身份、行为、信念与信誉的智能实体。
+2. **不信任，只验证 (Trustless & Verifiable)**：所有行为输入、结果反馈和权重计算逻辑均可公开验证，任何人可审计其公平性。
+3. **能力证明 (Proof of Competence)**：权重不依赖于初始财富或身份类型，而是基于历史行为质量的动态演化。
+4. **绝对确定性 (Absolute Determinism)**：核心引擎严禁使用原生浮点数（f32/f64），所有数学运算基于高精度定点数与确定性泰勒展开，确保跨平台比特级一致。
 
 ---
 
@@ -29,11 +29,11 @@ SIES 是一个**面向广义智能实体的去中心化演化基础设施**。�
 
 在 `sies-core::engine` 中，单轮演化被严格编排为两个串联阶段：
 
-1.  **Phase 1: 贝叶斯个体学习 (Bayesian Updating)**
+1. **Phase 1: 贝叶斯个体学习 (Bayesian Updating)**
     将智能体的“能力”视为隐藏的 Beta 分布 $Beta(\alpha, \beta)$。
     - 根据 Scoring Rule 计算归一化得分 $S_{norm} \in [0, 1]$。
     - 更新伪计数：$\alpha \leftarrow \alpha + S_{norm} \cdot \eta$，$\beta \leftarrow \beta + (1 - S_{norm}) \cdot \eta$（$\eta$ 为学习率）。
-2.  **Phase 2: 群体信息素演化 (Swarm Pheromone Evolve)**
+2. **Phase 2: 群体信息素演化 (Swarm Pheromone Evolve)**
     在贝叶斯更新后的权重基础上，执行群体层面的信息素蒸发与沉积。
     - **全局蒸发**：$W' = W \cdot (1 - \rho)$，$\rho$ 为蒸发率。
     - **信息素沉积**：$W'' = W' + Q \cdot \text{accuracy}$，$Q$ 为沉积强度，accuracy 为 Belief 与 Outcome 的点积。
@@ -122,10 +122,10 @@ $$W_{new} = W_{old} \cdot (1 - \rho)^{t / t_{half}}$$
 
 ## 六、 业务流转机制 (Workflow)
 
-1.  **行为提交**：智能体提交 Belief（签名），Executor 验证归一化后暂存。
-2.  **结果注入**：Oracle 或自动化脚本注入 Outcome。
-3.  **引擎演化**：`SwarmEvolutionEngine::step()` 执行贝叶斯更新与 Swarm 演化，输出新的 `BetaState`。
-4.  **状态持久化**：
+1. **行为提交**：智能体提交 Belief（签名），Executor 验证归一化后暂存。
+2. **结果注入**：Oracle 或自动化脚本注入 Outcome。
+3. **引擎演化**：`SwarmEvolutionEngine::step()` 执行贝叶斯更新与 Swarm 演化，输出新的 `BetaState`。
+4. **状态持久化**：
     - 将转换记录写入 `FileLedger`（分配 seq，计算 CRC）。
     - 将新的 `BetaState` 写入 `SmtStateStore`（更新 SMT 叶子节点）。
-5.  **共识与验证**：节点广播新的 SMT Root Hash。验证节点（Verifier）可通过重放 Ledger 独立计算 Root Hash 进行对账。
+5. **共识与验证**：节点广播新的 SMT Root Hash。验证节点（Verifier）可通过重放 Ledger 独立计算 Root Hash 进行对账。

@@ -30,6 +30,7 @@
 ## 3. 模块级技术选型 (Module-Level Tech Stack)
 
 ### 3.1 Chain & Crypto (链与密码学层)
+
 **目标**：提供安全、高性能的密码学原语与状态证明。
 
 | 功能 | 最终选择 | 候选/排除方案 | 决策理由 (Rationale) |
@@ -39,6 +40,7 @@
 | **数字签名** | `ed25519-dalek` | `ring` / `secp256k1` | Ed25519 黄金标准，纯 Rust 实现，安全性高。除非需兼容以太坊，否则不选 secp256k1。 |
 
 ### 3.2 Storage (存储与持久化层)
+
 **目标**：提供高性能的 KV 存储、状态序列化与持久化。
 
 | 功能 | 最终选择 | 候选/排除方案 | 决策理由 (Rationale) |
@@ -48,6 +50,7 @@
 | **状态后端适配** | 自研 Trait + SMT 适配 | - | 定义 `StateStore` trait，底层挂载 SMT 与 KV 引擎。 |
 
 ### 3.3 Core (核心算法与工具层)
+
 **目标**：提供数学计算、精度保证与基础工具链。
 
 | 功能 | 最终选择 | 候选/排除方案 | 决策理由 (Rationale) |
@@ -57,6 +60,7 @@
 | **错误处理** | `thiserror` + `anyhow` | 自定义 String 错误 | 库(crate)用 `thiserror` 定义强类型错误，应用/测试用 `anyhow` 包装上下文。 |
 
 ### 3.4 API (网络与接口层)
+
 **目标**：提供高性能、标准化的 RPC 与 REST 接口。
 
 | 功能 | 最终选择 | 候选/排除方案 | 决策理由 (Rationale) |
@@ -67,6 +71,7 @@
 | **JSON-RPC** | `jsonrpsee` | 自研 / `jsonrpc-core` | Parity 出品，支持 WS/HTTP 双协议，Substrate 生态标配。 |
 
 ### 3.5 Infrastructure (基础设施)
+
 **目标**：提供可观测性、配置管理与异步运行时。
 
 | 功能 | 最终选择 | 候选/排除方案 | 决策理由 (Rationale) |
