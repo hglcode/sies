@@ -92,7 +92,37 @@ name = "gitleaks secret scan"
 [[repos]]
 repo = "local"
 
+[[repos.hooks]]
+id = "core-purity-guard"
+name = "Guard sies-core purity (no async/IO/net)"
+# 使用 ripgrep 扫描 core crate，如果发现违禁词则退出码为 1，阻断 commit
+entry = "sh -c '! rg -n \"async fn|\\.await|tokio|std::fs|std::net|std::env|SystemTime|futures|spawn|block_on|Runtime\" crates/core/src'"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-commit", "pre-push"]
+
 # --- [pre-commit] Auto-fix formatters & linters ----------------------------
+
+[[repos.hooks]]
+id = "cargo-default-features-check"
+name = "Check for implicit default features in Cargo.toml"
+# 查找 dependencies 中使用了 version = "x.x" 但没有 default-features = false 的行
+# 排除了 dev-dependencies 和 build-dependencies，并排除了 workspace = true 的情况
+entry = "sh -c '! rg -n \"^[a-zA-Z0-9_-]+ = \\{ version = .*\\}\" --glob \"**/Cargo.toml\" | rg -v \"default-features = false\" | rg -v \"dev-dependencies\" -B 999 | rg -v \"build-dependencies\" -B 999'"
+language = "system"
+types = ["toml"]
+pass_filenames = false
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "rust-meta-check"
+name = "cargo fmt check + clippy (commit-time)"
+entry = "sh -c 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings'"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "rust-fmt"
@@ -205,14 +235,14 @@ pass_filenames = false
 always_run = true
 stages = ["pre-push"]
 
-#[[repos.hooks]]
-#id = "cargo-machete"
-#name = "cargo machete (unused deps)"
-#entry = "cargo machete"
-#language = "system"
-#pass_filenames = false
-#always_run = true
-#stages = ["pre-push"]
+[[repos.hooks]]
+id = "cargo-machete"
+name = "cargo machete (unused deps)"
+entry = "cargo machete"
+language = "system"
+pass_filenames = false
+always_run = true
+stages = ["pre-push"]
 
 [[repos.hooks]]
 id = "cargo-deny"

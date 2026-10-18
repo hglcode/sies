@@ -7,10 +7,13 @@ license.workspace = true
 publish = false
 
 [dependencies]
-sies-core = { path = "../core" }
-sies-chain = { path = "../chain" }
-sies-storage = { path = "../storage" }
 anyhow = { workspace = true }
 hex  = { workspace = true }
-tempfile = { workspace = true }
 rust_decimal = { workspace = true }
+sies-chain = { path = "../chain" }
+sies-core = { path = "../core" }
+sies-storage = { path = "../storage" }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

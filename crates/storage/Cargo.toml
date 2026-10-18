@@ -5,9 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
-
 [dependencies]
 #anyhow = { workspace = true }
 crc32fast = { workspace = true }
@@ -19,3 +16,6 @@ thiserror = { workspace = true }
 [dev-dependencies]
 serde_json = { workspace = true }
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

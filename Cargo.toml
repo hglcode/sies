@@ -24,27 +24,35 @@ rust-version = "1.99.0"
 license = "MIT OR Apache-2.0"
 
 [workspace.lints.clippy]
-# 禁止 unwrap (可根据团队接受度调整为 warn)
-unwrap_used = "deny"
-# 强制要求 default-features = false 很难用 lint 自动检查，需人工 review
-default-features = false
+# 强制要求 default_features = false 很难用 lint 自动检查，需人工 review
+default_features = "forbid"
 
-# 开启更严格的检查
+# 警告使用 unwrap 和 expect (生产代码应使用 ? 或 handle error)
+unwrap_used = "warn"
+expect_used = "warn"
+# 警告在 panic 宏中硬编码错误信息
+panic = "warn"
+
+# 提升代码质量的常用 lints
 pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
 missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
 
 # 在这里统一管理依赖，子 crate 中可以使用 { workspace = true } 引入
 [workspace.dependencies]
-approx = "0"
 anyhow = "1"
+approx = "0"
 crc32fast = "1"
 figment = "0"
 hex = "0"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 rand = "0"
 rust_decimal = "1"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
 serde_json = "1"
 sies-infra = { path = "crates/infra" }
 tempfile = "3"

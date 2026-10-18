@@ -13,7 +13,7 @@ sies-core = { path = "../core" }
 sies-crypto = { path = "../crypto" }
 sies-storage = { path = "../storage" }
 sparse-merkle-tree = { version = "0", default-features = false, features = [
-  "std",
+    "std",
 ] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -21,3 +21,6 @@ tracing = { workspace = true }
 [dev-dependencies]
 rust_decimal = { workspace = true }
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

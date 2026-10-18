@@ -11,3 +11,6 @@ serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
+
+[lints]
+workspace = true

@@ -12,3 +12,6 @@ tonic-prost = "0"
 
 [build-dependencies]
 tonic-prost-build = "0"
+
+[lints]
+workspace = true

@@ -11,3 +11,6 @@ serde = { workspace = true, features = ["derive"] }
 sies-infra.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
+
+[lints]
+workspace = true
