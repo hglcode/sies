@@ -1184,6 +1184,7 @@ dependencies = [
  "hex",
  "rust_decimal",
  "sies-chain",
+ "sies-core",
  "sies-storage",
  "tempfile",
 ]

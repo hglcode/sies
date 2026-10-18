@@ -99,20 +99,27 @@ fn apply_entry(store: &mut SmtStateStore, entry: &LedgerEntry) -> Result<(), Sto
 mod tests {
     use super::*;
     use rust_decimal::Decimal;
+    use sies_core::belief::Belief;
     use sies_storage::FileLedger;
     use tempfile::TempDir;
 
     fn make_entry(seq: u64, round: u64, user_id: u64, alpha: u64, beta: u64) -> LedgerEntry {
-        LedgerEntry {
+        let a = Decimal::from(alpha);
+        let b = Decimal::from(beta);
+        let total = a + b;
+        let belief = Belief::new(vec![a / total, b / total]).unwrap();
+        let outcome = Belief::new(vec![Decimal::ONE, Decimal::ZERO]).unwrap();
+
+        LedgerEntry::new(
             seq,
             round,
             user_id,
-            belief_allocations: vec![Decimal::new(7, 1)],
-            outcome_allocations: vec![Decimal::ONE],
-            new_alpha: Decimal::from(alpha),
-            new_beta: Decimal::from(beta),
-            score: Decimal::new(85, 2),
-        }
+            belief,
+            outcome,
+            Decimal::from(alpha), // ✅ 使用实际参数而非硬编码 2
+            Decimal::from(beta),  // ✅ 使用实际参数而非硬编码 1
+            Decimal::new(-356_674_943_938i64, 12),
+        )
     }
 
     #[test]

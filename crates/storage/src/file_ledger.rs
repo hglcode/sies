@@ -180,19 +180,20 @@ impl Ledger for FileLedger {
 mod tests {
     use super::*;
     use rust_decimal::Decimal;
+    use sies_core::belief::Belief;
     use tempfile::TempDir;
 
     fn sample_entry(round: u64, user_id: u64) -> LedgerEntry {
-        LedgerEntry {
-            seq: 0,
+        LedgerEntry::new(
+            1, // seq
             round,
             user_id,
-            belief_allocations: vec![Decimal::new(7, 1), Decimal::new(3, 1)],
-            outcome_allocations: vec![Decimal::ONE, Decimal::ZERO],
-            new_alpha: Decimal::from(2u64),
-            new_beta: Decimal::from(1u64),
-            score: Decimal::new(85, 2),
-        }
+            Belief::new(vec![Decimal::new(7, 1), Decimal::new(3, 1)]).unwrap(),
+            Belief::new(vec![Decimal::ONE, Decimal::ZERO]).unwrap(),
+            Decimal::from(2u64),                   // new_alpha
+            Decimal::ONE,                          // new_beta
+            Decimal::new(-356_674_943_938i64, 12), // score
+        )
     }
 
     #[test]

@@ -30,3 +30,28 @@ pub fn assert_round_trip_smt(node: &mut TestNode, expected: [u8; 32], msg: &str)
         .expect("rebuild after restart should not fail");
     assert_smt_root_eq(node, expected, msg);
 }
+
+/// Assert SMT root equals expected hex string, with full diagnostic on failure.
+///
+/// The primary assertion helper for golden-vector tests. On failure it prints
+/// the actual root as a `const` declaration ready for copy-paste, streamlining
+/// the initial golden-value capture workflow:
+///
+/// ```text
+/// panicked at: golden: SMT root mismatch
+///   expected: 0000...0000
+///   actual:   abcd...1234
+///
+///   // Update golden value:
+///   const GOLDEN: &str = "abcd...1234";
+/// ```
+#[track_caller]
+pub fn assert_smt_root_hex(node: &TestNode, expected_hex: &str, msg: &str) {
+    let actual = node.smt_root();
+    let actual_hex = hex::encode(actual);
+    let expected_hex = expected_hex.to_lowercase();
+    assert_eq!(
+        actual_hex, expected_hex,
+        "{msg}: SMT root mismatch\n  expected: {expected_hex}\n  actual:   {actual_hex}\n\n  // Update golden value:\n  const GOLDEN: &str = \"{actual_hex}\";",
+    );
+}

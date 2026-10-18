@@ -7,8 +7,9 @@ license.workspace = true
 publish = false
 
 [dependencies]
-sies-storage = { path = "../storage" }
+sies-core = { path = "../core" }
 sies-chain = { path = "../chain" }
+sies-storage = { path = "../storage" }
 anyhow = { workspace = true }
 hex  = { workspace = true }
 tempfile = { workspace = true }

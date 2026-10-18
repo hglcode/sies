@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 /// Belief/Outcome 相关的错误类型
@@ -81,6 +82,28 @@ impl Belief {
     }
 }
 
+/// Serde 序列化：委托给内部 Vec<Decimal>
+impl Serialize for Belief {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.allocations.serialize(serializer)
+    }
+}
+
+/// Serde 反序列化：先反序列化为 Vec<Decimal>，再经过 Belief::new 校验
+/// ✅ 关键：即使从文件/网络读入非法数据，这里也会返回 Err 而非静默接受
+impl<'de> Deserialize<'de> for Belief {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let allocs = Vec::<Decimal>::deserialize(deserializer)?;
+        Belief::new(allocs).map_err(serde::de::Error::custom)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,5 +153,32 @@ mod tests {
     #[test]
     fn test_reject_empty() {
         assert_eq!(Belief::new(vec![]), Err(BeliefError::EmptyAllocations));
+    }
+}
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn verify_belief_invariant_holds_after_construction() {
+        let len: usize = kani::any();
+        kani::assume(len > 0 && len <= 8);
+        let mut allocs = Vec::with_capacity(len);
+        for _ in 0..len {
+            let m: i128 = kani::any();
+            let s: u32 = kani::any();
+            kani::assume(s <= 28);
+            allocs.push(Decimal::from_i128_with_scale(m, s));
+        }
+        if let Ok(b) = Belief::new(allocs) {
+            for &a in b.allocations() {
+                assert!(a >= Decimal::ZERO);
+                assert!(a <= Decimal::ONE);
+            }
+            let sum: Decimal = b.allocations().iter().sum();
+            assert!((sum - Decimal::ONE).abs() < Decimal::new(1, 18));
+        }
     }
 }
