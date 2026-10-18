@@ -6,11 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-blake2b-rs = "0"
 hex = { workspace = true }
 #postcard = { workspace = true }
 #serde = { workspace = true }
 sies-core = { path = "../core" }
+sies-crypto = { path = "../crypto" }
 sies-storage = { path = "../storage" }
 sparse-merkle-tree = { version = "0", default-features = false, features = [
   "std",

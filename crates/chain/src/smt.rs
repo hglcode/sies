@@ -1,10 +1,15 @@
 use sies_core::bayesian::BetaState;
+use sies_crypto::Hasher;
 use sies_storage::{StateStore, StorageError};
 use sparse_merkle_tree::{
     H256, SparseMerkleTree, default_store::DefaultStore, traits::Hasher as SmtHasher, traits::Value,
 };
 
 /// 适配 sparse-merkle-tree v0.6.1 的有状态 Blake2b Hasher
+///
+/// 内部缓冲所有写入，在 `finish()` 时通过 `sies_crypto::Blake2bHasher` 一次性计算哈希。
+/// 迁移自 blake2b-rs（#34）：移除了 personalization，因为 key (固定 8 字节)
+/// 与 value (变长) 的输入域天然不重叠，不需要额外域隔离。
 #[derive(Clone, Default)]
 struct SiesBlake2bHasher {
     buffer: Vec<u8>,
@@ -20,25 +25,8 @@ impl SmtHasher for SiesBlake2bHasher {
     }
 
     fn finish(self) -> H256 {
-        let mut hasher = blake2b_rs::Blake2bBuilder::new(32)
-            .personal(b"sies-smt-hash!")
-            .build();
-        hasher.update(&self.buffer);
-        let mut buf = [0u8; 32];
-        hasher.finalize(&mut buf);
-        buf.into()
+        sies_crypto::Blake2bHasher::hash(&self.buffer).into()
     }
-}
-
-/// 辅助函数：对任意数据执行单次哈希（用于 key 生成和 value 哈希）
-fn blake2b_hash(data: &[u8]) -> H256 {
-    let mut hasher = blake2b_rs::Blake2bBuilder::new(32)
-        .personal(b"sies-smt-hash!")
-        .build();
-    hasher.update(data);
-    let mut buf = [0u8; 32];
-    hasher.finalize(&mut buf);
-    buf.into()
 }
 
 // ─── SMT Value 包装 ───────────────────────────────────────────
@@ -50,7 +38,7 @@ impl Value for SmtValue {
         if self.0.is_empty() {
             H256::zero()
         } else {
-            blake2b_hash(&self.0)
+            sies_crypto::Blake2bHasher::hash(&self.0).into()
         }
     }
     fn zero() -> Self {
@@ -70,15 +58,9 @@ impl SmtStateStore {
         }
     }
 
-    /// 将 user_id 转换为 SMT 的 256-bit key（使用独立 personalization 避免与树内哈希冲突）
+    /// 将 user_id 转换为 SMT 的 256-bit key
     fn user_key(user_id: u64) -> H256 {
-        let mut hasher = blake2b_rs::Blake2bBuilder::new(32)
-            .personal(b"sies-state-key")
-            .build();
-        hasher.update(&user_id.to_le_bytes());
-        let mut buf = [0u8; 32];
-        hasher.finalize(&mut buf);
-        buf.into()
+        sies_crypto::Blake2bHasher::hash(&user_id.to_le_bytes()).into()
     }
 
     pub fn root_hash(&self) -> [u8; 32] {
@@ -144,5 +126,19 @@ mod tests {
         assert_ne!(initial_root, store.root_hash());
         assert_eq!(store.get_state(42).unwrap(), Some(state));
         assert!(store.get_state(999).unwrap().is_none());
+    }
+
+    /// 验证 key 派生和 value 哈希不会产生碰撞（域隔离检查）
+    ///
+    /// 移除 blake2b-rs personalization 后，需确认 user_key(42) ≠ blake2b_hash(BetaState::uniform_prior().to_raw_bytes())
+    #[test]
+    fn key_and_value_domain_separation() {
+        let key_hash: [u8; 32] = SmtStateStore::user_key(42).into();
+        let value_hash: [u8; 32] =
+            sies_crypto::Blake2bHasher::hash(&BetaState::uniform_prior().to_raw_bytes());
+        assert_ne!(
+            key_hash, value_hash,
+            "key derivation and value hash collided!"
+        );
     }
 }

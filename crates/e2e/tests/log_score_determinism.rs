@@ -61,16 +61,16 @@ use sies_e2e::harness::TestNode;
 /// TODO(#29): Run once to capture, then replace:
 ///   cargo test -p sies-e2e --test log_score_determinism log_score_golden_cold_start -- --nocapture
 const GOLDEN_LOG_SCORE_ROOT: &str =
-    "205ff3a915d628d73d6809769e9259f1d864dd612c1d257cdfa9bb1de79f2b95";
+    "c5c70ac3240c64f606a7630e11d8354b5c83bb9de058c48981ad455582682d58";
 
 /// Golden SMT root after appending `log_score_boundary_entries()` (3 entries).
 /// Exercises ε-smoothing paths: p=0, p=ε, and uniform 50/50.
 const GOLDEN_LOG_SCORE_BOUNDARY_ROOT: &str =
-    "321e9f7e4cfd1325c113d7abfa1bda09cc4c2fa07d1f93ec7f529e44f602f9e0";
+    "731a21e329529c63c2ed3cc5a5bf789f9a1a92aa53fd4da49e75ffe6bf268ad5";
 
 /// Golden SMT root after appending `log_score_stress_batch()` (20 entries).
 const GOLDEN_LOG_SCORE_STRESS_ROOT: &str =
-    "0a1856e8b3c08905aeddc85f5023fb4beb9dd319da557dbbbc80466463e5d72e";
+    "9a9153b78e22f6de88c07a64f16e215ff17e17999db6b0ed07c4992af3474392";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Golden vector tests

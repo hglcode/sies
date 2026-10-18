@@ -5,4 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+default = ["blake2b"]
+blake2b = ["dep:blake2b_simd"]
+
 [dependencies]
+blake2b_simd = { version = "1", optional = true, default-features = false }
+
+[dev-dependencies]
+hex = { workspace = true }

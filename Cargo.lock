@@ -130,6 +130,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2b_simd"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3560a7b1951efe814fcd721938313adc56753ca39f4b23847d7e9a2402f5dbff"
+dependencies = [
+ "arrayvec",
+ "constant_time_eq",
+]
+
+[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -218,6 +228,12 @@ checksum = "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1"
 dependencies = [
  "thiserror",
 ]
+
+[[package]]
+name = "constant_time_eq"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "cpufeatures"
@@ -1146,10 +1162,10 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 name = "sies-chain"
 version = "0.1.0"
 dependencies = [
- "blake2b-rs",
  "hex",
  "rust_decimal",
  "sies-core",
+ "sies-crypto",
  "sies-storage",
  "sparse-merkle-tree",
  "tempfile",
@@ -1175,6 +1191,10 @@ dependencies = [
 [[package]]
 name = "sies-crypto"
 version = "0.1.0"
+dependencies = [
+ "blake2b_simd",
+ "hex",
+]
 
 [[package]]
 name = "sies-e2e"
