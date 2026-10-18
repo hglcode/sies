@@ -23,6 +23,17 @@ edition = "2024"
 rust-version = "1.99.0"
 license = "MIT OR Apache-2.0"
 
+[workspace.lints.clippy]
+# 禁止 unwrap (可根据团队接受度调整为 warn)
+unwrap_used = "deny"
+# 强制要求 default-features = false 很难用 lint 自动检查，需人工 review
+default-features = false
+
+# 开启更严格的检查
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+
 # 在这里统一管理依赖，子 crate 中可以使用 { workspace = true } 引入
 [workspace.dependencies]
 approx = "0"
