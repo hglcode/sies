@@ -5,7 +5,7 @@ import "v1/common.proto";
 
 // 对等节点间的控制面与状态同步
 service PeerService {
-  // 增量同步 EventLog (流式返回)
+  // 增量同步 `EventLog` (流式返回)
   rpc SyncEventLog(SyncEventLogRequest) returns (stream Event);
   // 广播共识决策结果
   rpc BroadcastDecision(DecisionEvent) returns (Ack);
@@ -16,7 +16,7 @@ message SyncEventLogRequest {
   uint64 to_seq = 2;
 }
 
-// 重构点 1：将黑盒 payload 替换为强类型的统一事件结构
+// 重构点 1：将黑盒 `payload` 替换为强类型的统一事件结构
 message Event {
   uint64 seq = 1;
   uint64 round = 2;
@@ -32,10 +32,10 @@ message Event {
 message StateCommitment {
   PeerId node_id = 1;
   BeliefVector state_vector = 2;
-  bytes verifier_signature = 3; // Verifier 对该 state_vector 的签名
+  bytes verifier_signature = 3; // Verifier 对该 `state_vector` 的签名
 }
 
-// 重构点 2：决策结果也是基于 BeliefVector 的聚合
+// 重构点 2：决策结果也是基于 `BeliefVector` 的聚合
 message DecisionEvent {
   uint64 round = 1;
   PeerId proposer = 2;

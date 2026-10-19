@@ -3,8 +3,11 @@ use crate::belief::Belief;
 use crate::scoring::ScoringRule;
 use crate::swarm::{SwarmConfig, SwarmUpdater};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 /// 群体智能演化引擎配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SwarmEvolutionConfig {
     pub bayesian_learning_rate: Decimal,
     pub swarm: SwarmConfig,
@@ -26,6 +29,7 @@ pub struct SwarmEvolutionEngine {
 }
 
 impl SwarmEvolutionEngine {
+    #[must_use]
     pub fn new(config: SwarmEvolutionConfig) -> Self {
         Self {
             bayesian: BayesianUpdater::new(ScoringRule::Brier, config.bayesian_learning_rate),
@@ -38,8 +42,8 @@ impl SwarmEvolutionEngine {
     /// 2. 全局群体信息素演化 (群体涌现)
     ///
     /// # Arguments
-    /// * `states` - 各 agent 当前 BetaState
-    /// * `beliefs` - 各 agent 本轮预测 Belief
+    /// * `states` - 各 agent 当前 `BetaState`
+    /// * `beliefs` - 各 agent 本轮预测 `Belief`
     /// * `outcome` - 本轮真实结果
     pub fn step(
         &self,

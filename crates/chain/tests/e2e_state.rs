@@ -1,8 +1,10 @@
-use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+use rust_decimal::{Decimal, prelude::FromPrimitive};
 use sies_chain::smt::SmtStateStore;
-use sies_core::bayesian::{BayesianUpdater, BetaState};
-use sies_core::belief::Belief;
+use sies_core::{
+    bayesian::{BayesianUpdater, BetaState},
+    belief::Belief,
+};
 use sies_storage::StateStore;
 
 /// 端到端：贝叶斯更新 → SMT 持久化 → 读回验证
@@ -26,17 +28,17 @@ fn test_bayesian_update_persisted_in_smt() {
     let updater = BayesianUpdater::default_brier();
     let belief = Belief::new(vec![Decimal::from_f64(1.0).unwrap()]).unwrap();
     let outcome = Belief::new(vec![Decimal::from_f64(1.0).unwrap()]).unwrap(); // outcome 也是 Belief
-    let updated = updater.update(&loaded, &belief, &outcome).unwrap();
+    let updbeta = updater.update(&loaded, &belief, &outcome).unwrap();
 
     // 持久化更新后的状态
-    store.put_state(user_id, &updated).unwrap();
+    store.put_state(user_id, &updbeta).unwrap();
 
     // 再次读回验证一致性
     let reloaded = store
         .get_state(user_id)
         .unwrap()
         .expect("updated state should exist");
-    assert_eq!(reloaded, updated);
+    assert_eq!(reloaded, updbeta);
     assert!(reloaded.expected_weight() > prior.expected_weight());
 }
 

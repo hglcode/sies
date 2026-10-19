@@ -5,6 +5,13 @@
 //!
 //! 使用固定种子 LCG PRNG 确保完全可复现、零外部依赖。
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::unreadable_literal,
+    clippy::explicit_iter_loop
+)]
+
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use sies_core::bayesian::{BayesianUpdater, BetaState};
@@ -23,7 +30,10 @@ impl LcgRng {
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        self.state = self
+            .state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1);
         self.state
     }
 
@@ -102,11 +112,7 @@ fn generate_belief(rng: &mut LcgRng, user_type: UserType, true_outcome_idx: usiz
 }
 
 fn generate_outcome(rng: &mut LcgRng) -> (Belief, usize) {
-    let idx = if rng.coin_flip(Decimal::from_f64(0.6).unwrap()) {
-        0
-    } else {
-        1
-    };
+    let idx = usize::from(!rng.coin_flip(Decimal::from_f64(0.6).unwrap()));
     (Belief::one_hot(NUM_OPTIONS, idx).unwrap(), idx)
 }
 
@@ -171,7 +177,7 @@ fn test_monte_carlo_weight_evolution() {
     let final_novice = mean_weight(&users, UserType::Novice);
     let final_follower = mean_weight(&users, UserType::Follower);
 
-    println!("\n=== Final Weights (after {} rounds) ===", NUM_ROUNDS);
+    println!("\n=== Final Weights (after {NUM_ROUNDS} rounds) ===");
     println!("  Expert:   {final_expert}");
     println!("  Novice:   {final_novice}");
     println!("  Follower: {final_follower}");

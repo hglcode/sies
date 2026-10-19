@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::belief::{Belief, BeliefError};
@@ -13,12 +14,13 @@ pub enum ScoringError {
 }
 
 /// 支持的严格适当评分规则
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ScoringRule {
-    /// Brier Score (Quadratic): S(p, o) = 1 - sum((p_i - o_i)^2)
+    /// Brier Score (Quadratic): `S(p, o) = 1 - sum((p_i - o_i)^2)`
     /// 范围: [0, 1]，越高越好
     Brier,
-    /// Log Score (Logarithmic): S(p, o) = sum(o_i * ln(p_i))
+    /// Log Score (Logarithmic): `S(p, o) = sum(o_i * ln(p_i))`
     /// 范围: (-inf, 0]，越高越好（0为完美）
     Log,
 }
@@ -32,6 +34,7 @@ pub struct Scorer {
 
 impl Scorer {
     /// 创建新的评分器
+    #[must_use]
     pub fn new(rule: ScoringRule) -> Self {
         // ε = 1e-12，足够小以避免显著偏差，又足够大以避免下溢
         let epsilon = Decimal::new(1, 12);
@@ -52,13 +55,13 @@ impl Scorer {
         }
 
         match self.rule {
-            ScoringRule::Brier => self.brier_score(belief, outcome),
+            ScoringRule::Brier => Ok(Scorer::brier_score(belief, outcome)),
             ScoringRule::Log => self.log_score(belief, outcome),
         }
     }
 
     /// Brier Score: 1 - Σ(pᵢ - oᵢ)²
-    fn brier_score(&self, belief: &Belief, outcome: &Belief) -> Result<Decimal, ScoringError> {
+    fn brier_score(belief: &Belief, outcome: &Belief) -> Decimal {
         let mut sum_sq_diff = Decimal::ZERO;
 
         for (&p, &o) in belief.allocations().iter().zip(outcome.allocations()) {
@@ -66,7 +69,7 @@ impl Scorer {
             sum_sq_diff += diff * diff;
         }
 
-        Ok(Decimal::ONE - sum_sq_diff)
+        Decimal::ONE - sum_sq_diff
     }
 
     /// Log Score: Σ(oᵢ * ln(pᵢ))，带 ε 平滑

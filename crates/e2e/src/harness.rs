@@ -69,18 +69,22 @@ impl TestNode {
             .map_err(|e| anyhow::anyhow!("last_seq: {e}"))
     }
 
+    #[must_use]
     pub fn smt_root(&self) -> [u8; 32] {
         self.smt.root_hash()
     }
 
+    #[must_use]
     pub fn smt(&self) -> &SmtStateStore {
         &self.smt
     }
 
+    #[must_use]
     pub fn ledger(&self) -> &FileLedger {
         &self.ledger
     }
 
+    #[must_use]
     pub fn dir(&self) -> &Path {
         &self.dir_path
     }

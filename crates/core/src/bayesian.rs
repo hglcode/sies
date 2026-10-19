@@ -1,7 +1,6 @@
 use crate::belief::Belief;
 use crate::scoring::{Scorer, ScoringError, ScoringRule};
 use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -16,6 +15,7 @@ pub enum BayesianError {
 
 /// 参与者的信誉状态 (基于 Beta 分布)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BetaState {
     /// 成功/准确的伪计数
     alpha: Decimal,
@@ -37,6 +37,7 @@ impl BetaState {
     }
 
     /// 创建均匀先验状态 Beta(1, 1)
+    #[must_use]
     pub fn uniform_prior() -> Self {
         Self {
             alpha: Decimal::ONE,
@@ -45,11 +46,13 @@ impl BetaState {
     }
 
     /// 获取当前的 alpha 值
+    #[must_use]
     pub fn alpha(&self) -> Decimal {
         self.alpha
     }
 
     /// 获取当前的 beta 值
+    #[must_use]
     pub fn beta(&self) -> Decimal {
         self.beta
     }
@@ -58,14 +61,16 @@ impl BetaState {
     ///
     /// W = α / (α + β)
     /// 这是 Thompson Sampling 在确定性场景下的最佳近似。
+    #[must_use]
     pub fn expected_weight(&self) -> Decimal {
         self.alpha / (self.alpha + self.beta)
     }
 
     /// 转换为固定长度字节表示，绕过 Postcard 对 Decimal 的不兼容
-    /// 布局: [alpha_mantissa: i128 LE (16B)] [alpha_scale: u32 LE (4B)]
-    ///       [beta_mantissa:  i128 LE (16B)] [beta_scale:  u32 LE (4B)]
+    /// 布局: [`alpha_mantissa`: i128 LE (16B)] [`alpha_scale`: u32 LE (4B)]
+    ///       [`beta_mantissa`:  i128 LE (16B)] [`beta_scale`:  u32 LE (4B)]
     /// 总计 40 字节
+    #[must_use]
     pub fn to_raw_bytes(&self) -> [u8; 40] {
         let mut buf = [0u8; 40];
         // rust_decimal 内部表示: mantissa (i128) + scale (u32)
@@ -86,12 +91,13 @@ impl BetaState {
         buf
     }
 
-    /// 从固定长度字节恢复 BetaState
+    /// 从固定长度字节恢复 `BetaState`
+    #[allow(clippy::expect_used)] // SAFETY: buf is &[u8; 40], all slice ranges are statically valid
     pub fn from_raw_bytes(buf: &[u8; 40]) -> Result<Self, BayesianError> {
-        let alpha_mantissa = i128::from_le_bytes(buf[0..16].try_into().unwrap());
-        let alpha_scale = u32::from_le_bytes(buf[16..20].try_into().unwrap());
-        let beta_mantissa = i128::from_le_bytes(buf[20..36].try_into().unwrap());
-        let beta_scale = u32::from_le_bytes(buf[36..40].try_into().unwrap());
+        let alpha_mantissa = i128::from_le_bytes(buf[0..16].try_into().expect("buf is 40 bytes"));
+        let alpha_scale = u32::from_le_bytes(buf[16..20].try_into().expect("buf is 40 bytes"));
+        let beta_mantissa = i128::from_le_bytes(buf[20..36].try_into().expect("buf is 40 bytes"));
+        let beta_scale = u32::from_le_bytes(buf[36..40].try_into().expect("buf is 40 bytes"));
 
         let alpha = Decimal::from_i128_with_scale(alpha_mantissa, alpha_scale);
         let beta = Decimal::from_i128_with_scale(beta_mantissa, beta_scale);
@@ -112,6 +118,7 @@ impl BayesianUpdater {
     /// # Arguments
     /// * `rule` - 使用的评分规则
     /// * `learning_rate` - 学习率 (通常较小，如 0.1)
+    #[must_use]
     pub fn new(rule: ScoringRule, learning_rate: Decimal) -> Self {
         Self {
             scorer: Scorer::new(rule),
@@ -120,8 +127,9 @@ impl BayesianUpdater {
     }
 
     /// 使用默认 Brier Score 和 η=0.1 创建更新器
+    #[must_use]
     pub fn default_brier() -> Self {
-        Self::new(ScoringRule::Brier, Decimal::from_f64(0.1).unwrap())
+        Self::new(ScoringRule::Brier, Decimal::new(1, 1))
     }
 
     /// 根据预测和真实结果更新参与者的 Beta 状态
@@ -162,6 +170,7 @@ impl BayesianUpdater {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
     use rust_decimal::prelude::FromPrimitive;
 

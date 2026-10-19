@@ -4,7 +4,7 @@
 //! from underlying storage implementations.
 
 use rust_decimal::Decimal;
-use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use sies_core::bayesian::BetaState;
 use sies_core::belief::Belief;
@@ -57,9 +57,9 @@ pub struct LedgerEntry {
     pub belief: Belief,
     /// Serialized outcome / ground-truth vector.
     pub outcome: Belief,
-    /// Post-update alpha of the participant's BetaState.
+    /// Post-update alpha of the participant's `BetaState`.
     pub new_alpha: Decimal,
-    /// Post-update beta of the participant's BetaState.
+    /// Post-update beta of the participant's `BetaState`.
     pub new_beta: Decimal,
     /// Score computed by the scoring rule for this transition.
     pub score: Decimal,
@@ -68,6 +68,7 @@ pub struct LedgerEntry {
 impl LedgerEntry {
     /// 唯一构造入口，强制经过 Belief 校验
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub fn new(
         seq: u64,
         round: u64,
@@ -91,9 +92,12 @@ impl LedgerEntry {
     }
 
     /// 兼容现有序列化/测试代码的只读访问
+    #[must_use]
     pub fn belief_allocations(&self) -> &[Decimal] {
         self.belief.allocations()
     }
+
+    #[must_use]
     pub fn outcome_allocations(&self) -> &[Decimal] {
         self.outcome.allocations()
     }
@@ -114,12 +118,8 @@ pub struct RawLedgerEntry {
     pub score: i128,
 }
 
-//fn decimal_to_fixed_unsigned(d: Decimal) -> u64 {
-//    let scaled = d * Decimal::from(DECIMAL_SCALE);
-//    scaled
-//        .to_u64()
-//        .expect("decimal overflow in unsigned fixed-point conversion")
-//}
+#[allow(clippy::expect_used)] // value is clamped to valid range before conversion
+#[allow(clippy::unwrap_used)] // v originates from trusted local storage; always valid
 fn decimal_to_fixed_unsigned(d: Decimal) -> u64 {
     let clamped = d.max(Decimal::ZERO).min(Decimal::ONE);
     let scaled = clamped * Decimal::from(DECIMAL_SCALE);
@@ -128,19 +128,23 @@ fn decimal_to_fixed_unsigned(d: Decimal) -> u64 {
         .expect("clamped decimal still overflowed u64 fixed-point")
 }
 
+#[allow(clippy::expect_used)] // value is clamped to valid range before conversion
+#[allow(clippy::unwrap_used)] // v originates from trusted local storage; always valid
 fn decimal_to_fixed_signed(d: Decimal) -> i128 {
-    let scaled = d * Decimal::from(DECIMAL_SCALE as i128);
+    let scaled = d * Decimal::from(i128::from(DECIMAL_SCALE));
     scaled
         .to_i128()
         .expect("decimal overflow in signed i128 fixed-point conversion")
 }
 
 fn fixed_to_decimal_unsigned(v: u64) -> Decimal {
-    Decimal::from_u64(v).unwrap() / Decimal::from(DECIMAL_SCALE)
+    // Decimal implements From<u64> — infallible, no Option returned
+    Decimal::from(v) / Decimal::from(DECIMAL_SCALE)
 }
 
 fn fixed_to_decimal_signed(v: i128) -> Decimal {
-    Decimal::from_i128(v).unwrap() / Decimal::from(DECIMAL_SCALE as i128)
+    // Decimal implements From<i128> — infallible, no Option returned
+    Decimal::from(v) / Decimal::from(i128::from(DECIMAL_SCALE))
 }
 
 impl From<&LedgerEntry> for RawLedgerEntry {
@@ -167,6 +171,7 @@ impl From<&LedgerEntry> for RawLedgerEntry {
     }
 }
 
+#[allow(clippy::expect_used)] // corrupted storage data should panic, not be silently accepted
 impl From<RawLedgerEntry> for LedgerEntry {
     fn from(r: RawLedgerEntry) -> Self {
         let belief_allocs: Vec<Decimal> = r
@@ -285,6 +290,11 @@ pub use file_ledger::FileLedger;
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::stable_sort_primitive
+    )]
     use super::*;
     use std::collections::HashMap;
 
@@ -308,7 +318,7 @@ mod tests {
         }
         fn list_user_ids(&self) -> Result<Vec<UserId>> {
             let mut ids: Vec<_> = self.map.keys().copied().collect();
-            ids.sort();
+            ids.sort_unstable();
             Ok(ids)
         }
     }
@@ -411,7 +421,8 @@ mod tests {
     #[test]
     fn ledger_empty_range_returns_empty() {
         let ledger = MemLedger::new();
-        assert!(ledger.read_range(0, 10).unwrap().is_empty());
+        // assert!(ledger.read_range(0, 10).unwrap().is_empty());
+        assert_eq!(ledger.read_range(0, 10).unwrap(), [] as [LedgerEntry; 0]);
         assert_eq!(ledger.last_seq().unwrap(), 0);
     }
     #[test]

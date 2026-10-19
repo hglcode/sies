@@ -79,6 +79,20 @@ reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"
 - 只有在明确需要跨 crate 使用时才暴露 `pub`。
 - 提供 Builder 模式或构造函数来初始化复杂结构体，避免直接暴露包含大量字段的 `pub struct`。
 
+### 4.3 Serde 序列化契约 (Serialization Contract)
+
+`sies-core` 中所有公开数据结构必须遵守以下序列化约定，确保跨语言/跨版本兼容性：
+
+- **字段命名**：统一使用 `snake_case`（Rust 原生风格），**不添加** `rename_all`。
+- **大整数安全**：所有 `u64` / `i64` / `u128` / `i128` 字段**必须**序列化为字符串，防止 JSON 精度丢失。
+  ```rust
+  #[serde(serialize_with = "serde_str::serialize", deserialize_with = "serde_str::deserialize")]
+  pub fn score: u64,
+  ```
+- **防御性反序列化**：所有 struct/enum **必须**添加 `#[serde(deny_unknown_fields)]`，拒绝未知字段以快速暴露契约变更。
+- **字节数组**：`[u8; N]` 和 `Vec<u8>` 统一使用 hex 编码序列化（通过自定义 module 或 `hex` crate 的 serde feature）。
+- **手动实现审查**：若因特殊原因无法 derive 而需手动实现 `Serialize`/`Deserialize`，必须在 impl 块上方注释说明理由，并确保行为与上述契约一致。
+
 ## 5. 并发与异步 (Concurrency & Async)
 
 ### 5.1 Async 边界

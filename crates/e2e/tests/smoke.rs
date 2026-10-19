@@ -1,10 +1,11 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use sies_chain::smt::SmtStateStore;
 use sies_e2e::asserts::{assert_ledger_seq, assert_round_trip_smt, assert_smt_root_eq};
 use sies_e2e::fixtures::sample_entries;
 use sies_e2e::harness::TestNode;
 
 /// Cold-start: an empty ledger must produce the same SMT root as a fresh
-/// SmtStateStore (the genesis root).
+/// `SmtStateStore` (the genesis root).
 #[test]
 fn cold_start_produces_genesis_smt() {
     let node = TestNode::start().expect("cold start");

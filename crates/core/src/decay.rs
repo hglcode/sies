@@ -1,5 +1,5 @@
-use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::{Decimal, prelude::ToPrimitive};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// 衰减机制相关错误
@@ -23,9 +23,10 @@ pub enum DecayError {
 
 /// 蚁群信息素挥发计算器
 ///
-/// 公式: W_new = W_old * (1 - rho)^(t / half_life)
+/// 公式: `W_new` = `W_old` * (1 - rho)^(t / `half_life`)
 /// 使用确定性泰勒级数近似，完全避免 f64
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PheromoneDecay {
     /// 挥发率 ρ ∈ (0, 1)
     rho: Decimal,
@@ -60,19 +61,21 @@ impl PheromoneDecay {
     }
 
     /// 获取挥发率
+    #[must_use]
     pub fn rho(&self) -> Decimal {
         self.rho
     }
 
     /// 获取半衰期
+    #[must_use]
     pub fn half_life(&self) -> Decimal {
         self.half_life
     }
 
     /// 计算经过时间 t 后的衰减因子
     ///
-    /// decay_factor = (1 - rho)^(t / half_life)
-    ///              = exp((t / half_life) * ln(1 - rho))
+    /// `decay_factor` = (1 - rho)^(t / `half_life`)
+    ///                = exp((t / `half_life`) * ln(1 - rho))
     pub fn decay_factor(&self, elapsed_time: Decimal) -> Result<Decimal, DecayError> {
         if elapsed_time < Decimal::ZERO {
             return Err(DecayError::NegativeTime(elapsed_time));
@@ -125,13 +128,14 @@ fn ln_one_minus_x(x: Decimal) -> Decimal {
 /// # Errors
 /// - `Overflow`: |x| > 64.0 (超出 Decimal exp 可表示范围)
 /// - `ConvergenceFailure`: 内部级数未收敛（理论上不应发生）
+#[allow(clippy::expect_used)] // compile-time constant strings, infallible
 fn exp_taylor(x: Decimal) -> Result<Decimal, DecayError> {
-    let max_input = Decimal::from_str_exact("64").unwrap();
+    let max_input = Decimal::from_str_exact("64").expect("valid constant");
     if x.abs() > max_input {
         return Err(DecayError::Overflow(x));
     }
 
-    let ln2 = Decimal::from_str_exact("0.6931471805599453094172321214").unwrap();
+    let ln2 = Decimal::from_str_exact("0.6931471805599453094172321214").expect("valid constant");
 
     // ⚠️ x / ln2 是普通除法，可能在 debug 模式下 panic
     // 改用 checked_div
@@ -156,12 +160,11 @@ fn exp_taylor(x: Decimal) -> Result<Decimal, DecayError> {
     let epsilon = Decimal::new(1, 28);
 
     for n in 1..=30u32 {
-        let next_term = match term
+        let Some(next_term) = term
             .checked_mul(r)
             .and_then(|t| t.checked_div(Decimal::from(n)))
-        {
-            Some(v) => v,
-            None => break,
+        else {
+            break;
         };
 
         term = next_term;
@@ -195,7 +198,7 @@ fn pow2_int(k: i64) -> Option<Decimal> {
     } else {
         let mut result = Decimal::ONE;
         let base = Decimal::TWO;
-        let mut exp = k as u64;
+        let mut exp = k.cast_unsigned();
         let mut b = base;
         while exp > 0 {
             if exp & 1 == 1 {
@@ -214,19 +217,21 @@ fn pow2_int(k: i64) -> Option<Decimal> {
 // 确定性自然对数 ln(x) 实现 (ADR #2 compliant)
 // ==========================================
 
-/// 预计算的高精度常量 (28位有效数字，rust_decimal 极限精度)
+/// 预计算的高精度常量 (28位有效数字，`rust_decimal` 极限精度)
+#[allow(clippy::expect_used)] // compile-time mathematical constants, infallible
 fn ln_2() -> Decimal {
-    Decimal::from_str_exact("0.6931471805599453094172321214").unwrap()
+    Decimal::from_str_exact("0.6931471805599453094172321214").expect("valid constant")
 }
 
+#[allow(clippy::expect_used)] // compile-time mathematical constants, infallible
 fn ln_10() -> Decimal {
-    Decimal::from_str_exact("2.3025850929940456840179914546").unwrap()
+    Decimal::from_str_exact("2.3025850929940456840179914546").expect("valid constant")
 }
 
 /// 计算任意正数 x 的自然对数 ln(x)
 ///
 /// # 算法原理 (参数约简 + artanh 级数)
-/// 1. 使用 Decimal::normalize() 将 x 表示为 c × 10^e，其中 c ∈ [1, 10)
+/// 1. 使用 `Decimal::normalize()` 将 x 表示为 c × 10^e，其中 c ∈ [1, 10)
 /// 2. 进一步将 c 拆分到 [1, 2) 区间: c = c' × 2^k
 /// 3. ln(x) = ln(c') + k·ln(2) + e·ln(10)
 /// 4. 对 c' ∈ [1, 2) 使用 artanh 级数: ln(c') = 2·artanh((c'-1)/(c'+1))
@@ -242,15 +247,18 @@ pub fn ln_deterministic(x: Decimal) -> Result<Decimal, DecayError> {
     // 1. 参数约简：提取 [1, 10) 区间的系数和 base-10 指数
     let normalized = x.normalize();
     let coeff = normalized.mantissa().unsigned_abs(); // u128
-    let exp10 = -(normalized.scale() as i64);
+    let exp10 = -i64::from(normalized.scale());
 
     // 将 coeff 转为 Decimal，构造 [1.0, 10.0) 范围内的值
     let coeff_str = coeff.to_string();
+
+    // decimal coefficient string length never exceeds u32::MAX
+    #[allow(clippy::cast_possible_truncation)]
     let digits = coeff_str.len() as u32;
 
     // from_i128_with_scale 安全处理大数，不会 panic
-    let m = Decimal::from_i128_with_scale(coeff as i128, digits.saturating_sub(1));
-    let exp10_adjusted = exp10 + (digits as i64 - 1);
+    let m = Decimal::from_i128_with_scale(coeff.cast_signed(), digits.saturating_sub(1));
+    let exp10_adjusted = exp10 + (i64::from(digits) - 1);
 
     // 2. 进一步约简到 [1.0, 2.0) 区间
     let mut k: i64 = 0;
@@ -304,6 +312,7 @@ pub fn ln_deterministic(x: Decimal) -> Result<Decimal, DecayError> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
     use approx::assert_relative_eq;
     use rust_decimal::prelude::{FromPrimitive, ToPrimitive};

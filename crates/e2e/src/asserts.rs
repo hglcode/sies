@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use crate::harness::TestNode;
 
 /// Assert SMT root equals expected, printing hex on failure.
@@ -14,11 +15,11 @@ pub fn assert_smt_root_eq(node: &TestNode, expected: [u8; 32], msg: &str) {
     );
 }
 
-/// Assert ledger last_seq equals expected with diagnostic context.
+/// Assert ledger `last_seq` equals expected with diagnostic context.
 #[track_caller]
 pub fn assert_ledger_seq(node: &TestNode, expected: u64, msg: &str) {
     let actual = node.last_seq().expect("last_seq should not fail");
-    assert_eq!(actual, expected, "{}: ledger seq mismatch", msg);
+    assert_eq!(actual, expected, "{msg}: ledger seq mismatch");
 }
 
 /// Restart node, rebuild SMT, and assert root matches `expected`.

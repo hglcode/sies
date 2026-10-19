@@ -36,12 +36,12 @@ impl<L: Ledger> Rebuilder<L> {
     }
 
     pub fn rebuild(&self) -> Result<SmtStateStore, RebuildError> {
+        const BATCH: u64 = 4096;
         let total = self.ledger.last_seq()?;
         info!(total_entries = total, "Starting SMT rebuild from ledger");
 
         let mut store = SmtStateStore::new();
         let mut processed: u64 = 0;
-        const BATCH: u64 = 4096;
         let mut cursor: u64 = 1;
 
         while cursor <= total {
@@ -97,6 +97,7 @@ fn apply_entry(store: &mut SmtStateStore, entry: &LedgerEntry) -> Result<(), Sto
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
     use rust_decimal::Decimal;
     use sies_core::belief::Belief;

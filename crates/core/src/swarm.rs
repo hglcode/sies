@@ -1,9 +1,11 @@
 use crate::bayesian::{BayesianError, BetaState};
 use crate::belief::Belief;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 /// 群体智能演化配置 (当前默认实现为蚁群信息素机制)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SwarmConfig {
     /// 信息素蒸发率 ρ ∈ (0, 1)
     pub evaporation_rate: Decimal,
@@ -25,16 +27,17 @@ pub struct SwarmUpdater {
 }
 
 impl SwarmUpdater {
+    #[must_use]
     pub fn new(config: SwarmConfig) -> Self {
         Self { config }
     }
 
-    /// 对一组 BetaState 执行群体层面的信息素蒸发 + 基于 outcome 的沉积
+    /// 对一组 `BetaState` 执行群体层面的信息素蒸发 + 基于 outcome 的沉积
     ///
     /// # 算法逻辑
     /// 1. 所有 agent 的权重先经历全局蒸发: W' = W * (1 - ρ)
     /// 2. 预测准确的 agent 获得额外信息素沉积: W'' = W' + Q * score
-    /// 3. 将新的权重反解回 BetaState 的 (alpha, beta)
+    /// 3. 将新的权重反解回 `BetaState` 的 (alpha, beta)
     pub fn evolve(
         &self,
         states: &[BetaState],

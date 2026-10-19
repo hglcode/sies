@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 use rust_decimal::Decimal;
 use sies_core::belief::Belief;
 use sies_storage::LedgerEntry;
@@ -9,6 +10,7 @@ fn belief(vals: &[Decimal]) -> Belief {
 }
 
 /// Create a minimal valid [`LedgerEntry`] for testing.
+#[must_use]
 pub fn sample_entry(seq: u64, round: u64, user_id: u64, alpha: u64, beta: u64) -> LedgerEntry {
     LedgerEntry::new(
         seq,
@@ -24,6 +26,7 @@ pub fn sample_entry(seq: u64, round: u64, user_id: u64, alpha: u64, beta: u64) -
 }
 
 /// Generate `n` sample entries with sequential seq starting from 1.
+#[must_use]
 pub fn sample_entries(n: u64, round: u64) -> Vec<LedgerEntry> {
     (0..n)
         .map(|i| sample_entry(i + 1, round, 0, 1, 1))
@@ -31,6 +34,7 @@ pub fn sample_entries(n: u64, round: u64) -> Vec<LedgerEntry> {
 }
 
 /// Build a batch of sequential entries for multiple users/rounds.
+#[must_use]
 pub fn sample_batch(count: u64) -> Vec<LedgerEntry> {
     (1..=count)
         .map(|i| sample_entry(i, (i - 1) / 3 + 1, i % 10 + 1, i + 1, 1))
@@ -38,7 +42,7 @@ pub fn sample_batch(count: u64) -> Vec<LedgerEntry> {
 }
 
 // ─── Log-score determinism fixtures ─────────────────────────────────────────
-
+#[must_use]
 pub fn log_score_entries() -> Vec<LedgerEntry> {
     vec![
         // Round 1 — User 1: confident correct prediction
@@ -88,6 +92,7 @@ pub fn log_score_entries() -> Vec<LedgerEntry> {
     ]
 }
 
+#[must_use]
 pub fn log_score_boundary_entries() -> Vec<LedgerEntry> {
     vec![
         // p = 0 (exact zero) → ε-smoothing mandatory
@@ -127,16 +132,15 @@ pub fn log_score_boundary_entries() -> Vec<LedgerEntry> {
 }
 
 /// Stress batch: 20 entries across 5 users × 4 rounds.
-/// ✅ All allocations now go through Belief::new(), guaranteeing validity.
-/// Stress batch: 20 entries across 5 users × 4 rounds.
-/// ✅ All allocations now go through Belief::new(), guaranteeing validity.
+/// ✅ All allocations now go through `Belief::new()`, guaranteeing validity.
+#[must_use]
 pub fn log_score_stress_batch() -> Vec<LedgerEntry> {
     (0..20u64)
         .map(|i| {
             let user_id = (i % 5) + 1;
             let round = (i / 5) + 1;
             // ✅ 将 p 钳制到 [0.01, 0.99] 范围内，避免负值和非归一化
-            let raw_p = (i * 7 + 1) as i64;
+            let raw_p = (i * 7 + 1).cast_signed();
             let clamped_p = raw_p.clamp(1, 99); // ✅ 使用 .clamp() 替代 .min().max()
             let p = Decimal::new(clamped_p, 2);
             let q = Decimal::ONE - p;
@@ -153,7 +157,7 @@ pub fn log_score_stress_batch() -> Vec<LedgerEntry> {
                 belief(&outcome_vec),
                 Decimal::from(i + 2),
                 Decimal::from(i + 1),
-                -Decimal::new(((i + 1) * 12345) as i64, 4),
+                -Decimal::new(((i + 1) * 12345).cast_signed(), 4),
             )
         })
         .collect()

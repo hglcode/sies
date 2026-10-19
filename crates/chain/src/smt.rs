@@ -52,17 +52,19 @@ pub struct SmtStateStore {
 }
 
 impl SmtStateStore {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             tree: SparseMerkleTree::default(),
         }
     }
 
-    /// 将 user_id 转换为 SMT 的 256-bit key
+    /// 将 `user_id` 转换为 SMT 的 256-bit key
     fn user_key(user_id: u64) -> H256 {
         sies_crypto::Blake2bHasher::hash(&user_id.to_le_bytes()).into()
     }
 
+    #[must_use]
     pub fn root_hash(&self) -> [u8; 32] {
         (*self.tree.root()).into()
     }
@@ -113,6 +115,7 @@ impl StateStore for SmtStateStore {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     #[test]
@@ -130,7 +133,7 @@ mod tests {
 
     /// 验证 key 派生和 value 哈希不会产生碰撞（域隔离检查）
     ///
-    /// 移除 blake2b-rs personalization 后，需确认 user_key(42) ≠ blake2b_hash(BetaState::uniform_prior().to_raw_bytes())
+    /// 移除 blake2b-rs personalization 后，需确认 `user_key(42)` ≠ `blake2b_hash(BetaState::uniform_prior().to_raw_bytes())`
     #[test]
     fn key_and_value_domain_separation() {
         let key_hash: [u8; 32] = SmtStateStore::user_key(42).into();

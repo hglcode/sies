@@ -21,7 +21,7 @@ pub struct Belief {
 
 impl Belief {
     /// 归一化校验的容差阈值 (1e-9)
-    /// 注意: 不使用 const 以避免 rust_decimal 版本间的 const fn 兼容性问题
+    /// 注意: 不使用 const 以避免 `rust_decimal` 版本间的 const fn 兼容性问题
     #[inline]
     fn normalization_tolerance() -> Decimal {
         // 精确表示 0.000000001，无浮点转换
@@ -72,11 +72,13 @@ impl Belief {
     }
 
     /// 获取内部分配向量的只读引用
+    #[must_use]
     pub fn allocations(&self) -> &[Decimal] {
         &self.allocations
     }
 
     /// 获取选项数量
+    #[must_use]
     pub fn num_options(&self) -> usize {
         self.allocations.len()
     }
@@ -92,7 +94,7 @@ impl Serialize for Belief {
     }
 }
 
-/// Serde 反序列化：先反序列化为 Vec<Decimal>，再经过 Belief::new 校验
+/// Serde 反序列化：先反序列化为 Vec<Decimal>，再经过 `Belief::new` 校验
 /// ✅ 关键：即使从文件/网络读入非法数据，这里也会返回 Err 而非静默接受
 impl<'de> Deserialize<'de> for Belief {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

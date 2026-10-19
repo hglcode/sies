@@ -39,6 +39,7 @@
 //! aarch64-linux in CI. Identical golden values across both targets confirm
 //! true bit-level determinism.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use sies_e2e::asserts::{
     assert_ledger_seq, assert_round_trip_smt, assert_smt_root_eq, assert_smt_root_hex,
 };
@@ -59,7 +60,7 @@ use sies_e2e::harness::TestNode;
 /// Golden SMT root after appending `log_score_entries()` (4 entries).
 ///
 /// TODO(#29): Run once to capture, then replace:
-///   cargo test -p sies-e2e --test log_score_determinism log_score_golden_cold_start -- --nocapture
+///   cargo test -p sies-e2e --test `log_score_determinism` `log_score_golden_cold_start` -- --nocapture
 const GOLDEN_LOG_SCORE_ROOT: &str =
     "c5c70ac3240c64f606a7630e11d8354b5c83bb9de058c48981ad455582682d58";
 

@@ -6,7 +6,7 @@ message PeerId {
   bytes id = 1;
 }
 
-// 重构点 1：为 BeliefVector 增加元数据，支持算法演进
+// 重构点 1：为 `BeliefVector` 增加元数据，支持算法演进
 message BeliefVector {
   // 如果未来向量维度动态变化，或者使用了不同的量化/编码方式，version 很有用
   uint32 version = 1;

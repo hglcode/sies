@@ -25,7 +25,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.lints.clippy]
 # 强制要求 default_features = false 很难用 lint 自动检查，需人工 review
-default_features = "forbid"
+# default_features = false
 
 # 警告使用 unwrap 和 expect (生产代码应使用 ? 或 handle error)
 unwrap_used = "warn"

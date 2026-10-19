@@ -88,8 +88,8 @@ impl FileLedger {
             offsets.push(pos);
             let mut len_buf = [0u8; 4];
             f.read_exact(&mut len_buf).map_err(StorageError::Io)?;
-            let payload_len = u32::from_le_bytes(len_buf) as u64;
-            f.seek(SeekFrom::Current((payload_len + 4) as i64))
+            let payload_len = u64::from(u32::from_le_bytes(len_buf));
+            f.seek(SeekFrom::Current((payload_len + 4).cast_signed()))
                 .map_err(StorageError::Io)?;
             pos += 4 + payload_len + 4;
         }
@@ -130,6 +130,7 @@ impl FileLedger {
         let offset = self.write_pos;
         self.offsets.push(offset);
 
+        #[allow(clippy::cast_possible_truncation)] // protocol guarantees payload ≤ 4 GiB
         self.log_file
             .write_all(&(payload.len() as u32).to_le_bytes())
             .map_err(StorageError::Io)?;
@@ -154,6 +155,8 @@ impl Ledger for FileLedger {
     }
 
     fn read_range(&self, start_seq: u64, end_seq: u64) -> Result<Vec<LedgerEntry>> {
+        // sequence numbers fit in usize on all supported targets
+        #[allow(clippy::cast_possible_truncation)]
         let start_idx = if start_seq == 0 {
             0
         } else {
@@ -164,6 +167,7 @@ impl Ledger for FileLedger {
         let end_idx = if end_seq == 0 {
             0
         } else {
+            #[allow(clippy::cast_possible_truncation)]
             ((end_seq - 1) as usize).min(self.offsets.len())
         };
         (start_idx..end_idx)
@@ -177,6 +181,7 @@ impl Ledger for FileLedger {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use rust_decimal::Decimal;
@@ -201,7 +206,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let ledger = FileLedger::open(dir.path()).unwrap();
         assert_eq!(ledger.last_seq().unwrap(), 0);
-        assert!(ledger.read_range(0, 10).unwrap().is_empty());
+        // assert!(ledger.read_range(0, 10).unwrap().is_empty());
+        assert_eq!(ledger.read_range(0, 10).unwrap(), [] as [LedgerEntry; 0]);
     }
 
     #[test]
