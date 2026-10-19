@@ -1,0 +1,18 @@
+[package]
+name = "sies-standalone"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+sies-chain = { path = "../chain" }
+sies-core = { path = "../core" }
+sies-storage = { path = "../storage" }
+
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

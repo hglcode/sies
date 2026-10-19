@@ -1,0 +1,23 @@
+[package]
+name = "sies-standalone-bin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sies-standalone"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+
+clap = { workspace = true, features = ["derive"] }
+hex = { workspace = true }
+sies-infra = { workspace = true }
+sies-standalone = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
