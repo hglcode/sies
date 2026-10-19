@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-serde = { workspace = true }
+#serde = { workspace = true }
 sies-chain = { path = "../chain" }
 sies-core = { path = "../core" }
 sies-storage = { path = "../storage" }

@@ -1308,7 +1308,6 @@ dependencies = [
 name = "sies-standalone"
 version = "0.1.0"
 dependencies = [
- "serde",
  "sies-chain",
  "sies-core",
  "sies-storage",
