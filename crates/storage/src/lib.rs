@@ -233,6 +233,19 @@ pub trait Ledger {
     /// Append a [`LedgerEntry`] and return its assigned sequence number.
     fn append(&mut self, entry: &LedgerEntry) -> Result<u64>;
 
+    /// Append a batch of entries, returning the assigned sequence numbers
+    /// in order.
+    ///
+    /// Durability contract: implementations SHOULD group-commit — the whole
+    /// batch becomes durable with a single fsync where the backend supports
+    /// it ([`FileLedger`] does). Callers replaying or rebuilding should
+    /// prefer this over per-entry `append`.
+    ///
+    /// The default implementation falls back to per-entry [`Ledger::append`].
+    fn append_batch(&mut self, entries: &[LedgerEntry]) -> Result<Vec<u64>> {
+        entries.iter().map(|e| self.append(e)).collect()
+    }
+
     /// Read entries in the half-open range `[start_seq, end_seq)`.
     fn read_range(&self, start_seq: u64, end_seq: u64) -> Result<Vec<LedgerEntry>>;
 
