@@ -1,0 +1,111 @@
+# SIES CI —— 任务 #26（审计 P1-11 + §9.1-5，宪法 E2/E3）
+#
+# 门禁最小集（本地 just ci 的可运行子集，kani/fuzz 留本地专用任务）：
+#   lint  : cargo fmt --check / cargo clippy -D warnings
+#   audit : cargo deny / cargo audit / cargo machete
+#   test  : cargo nextest --workspace（含 e2e smoke 全量）× {x86_64, aarch64}
+#
+# 双平台 golden vector 矩阵：两个架构各跑同一份 `log_score_determinism`
+# 黄金向量（SMT root 以常量形式固化在测试里）。两腿全绿 ⇔ 双平台 root
+# 与既定常量逐位一致 ⇔ 跨平台位级确定性成立（兑现 #29 的承诺）。
+# JUnit XML 作为工件上传，满足“CI 工件可下载”验收项。
+#
+# 注意：工作流只在 github.com 上触发 —— 推送用 `git push github dev`。
+# 若 aarch64 腿长期 Queued（私有仓库无 arm runner 配额），切 QEMU/cross 方案。
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  lint:
+    name: fmt + clippy (-D warnings)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: 安装工具链（锁 1.99.1，与 rust-version 一致，防 clippy 漂移）
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.99.1"
+          components: clippy, rustfmt
+      - name: 安装 protoc（sies-rpc build.rs 需要）
+        uses: taiki-e/install-action@protoc
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: cargo clippy -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  audit:
+    name: deny + audit + machete
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: cargo deny（licenses / bans / sources / advisories）
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          arguments: --hide-inclusion-graph
+      - name: 安装 cargo-audit / cargo-machete（用 runner 预装 stable 编译）
+        run: cargo install cargo-audit cargo-machete --locked
+      - name: cargo audit（RustSec 漏洞库）
+        run: cargo audit
+      - name: cargo machete（未使用依赖）
+        run: cargo machete
+
+  test:
+    name: nextest (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: 安装工具链（锁 1.99.1）
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.99.1"
+      - name: 安装 protoc（sies-rpc build.rs 需要）
+        uses: taiki-e/install-action@protoc
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+      - name: 全量测试（单元 + 集成 + e2e smoke + 双平台 golden vectors）
+        run: cargo nextest run --workspace --no-fail-fast --profile ci
+      - name: 上传 JUnit 测试报告（可下载工件）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-junit-${{ matrix.arch }}
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: warn

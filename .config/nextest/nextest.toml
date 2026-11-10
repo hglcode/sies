@@ -1,0 +1,6 @@
+# nextest 配置：CI profile 产出 JUnit XML 报告，供 Actions 工件下载（任务 #26）。
+# 只定义 profile.ci，不影响本地默认行为（`cargo nextest r` 不读此 profile）。
+# 文档: https://nexte.st/book/configuration.html
+
+[profile.ci.junit]
+path = "target/nextest/ci/junit.xml"

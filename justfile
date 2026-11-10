@@ -51,6 +51,10 @@ tst:
     else echo "⚠ nextest 未安装，回退 cargo test"; cargo test --workspace --quiet; fi
     cargo test --workspace --doc --quiet
 
+# E2E 冒烟测试（任务 #26 原范围；CI test job 跑的是其超集 --workspace）
+e2e-smoke:
+    cargo nextest run -p sies-e2e --test smoke
+
 # 形式化验证（kani）—— proof harness 以 cfg(kani) 隔离，常规构建零成本
 kani:
     @if command -v cargo-kani >/dev/null 2>&1; then \
