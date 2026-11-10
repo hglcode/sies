@@ -11,6 +11,11 @@ pub enum BayesianError {
     Scoring(#[from] ScoringError),
     #[error("invalid parameters: alpha and beta must be strictly positive")]
     InvalidParameters,
+    #[error("length mismatch: {states_len} states vs {beliefs_len} beliefs")]
+    LengthMismatch {
+        states_len: usize,
+        beliefs_len: usize,
+    },
 }
 
 /// 参与者的信誉状态 (基于 Beta 分布)
