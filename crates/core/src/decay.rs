@@ -310,6 +310,17 @@ pub fn ln_deterministic(x: Decimal) -> Result<Decimal, DecayError> {
     Ok(result)
 }
 
+/// 计算任意 x 的确定性 e^x（ADR #2 compliant）
+///
+/// 公开薄封装：委托内部 `exp_taylor`（参数约减 + Taylor 级数，|x| ≤ 64）。
+/// 供 scoring / bayesian 复用，避免各模块自行实现指数函数导致精度漂移。
+///
+/// # Errors
+/// 同内部实现：`Overflow`（|x| > 64）、`ConvergenceFailure`。
+pub fn exp_deterministic(x: Decimal) -> Result<Decimal, DecayError> {
+    exp_taylor(x)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]

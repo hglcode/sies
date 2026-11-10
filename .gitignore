@@ -20,3 +20,6 @@ Thumbs.db
 # Library Workspace 不提交 lock 文件
 # 如果未来添加了 binary crate，再取消注释
 # Cargo.lock
+
+/temp
+/.rumdl_cache

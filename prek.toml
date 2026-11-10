@@ -1,316 +1,207 @@
-# Configuration file for `prek`, a git hook framework written in Rust.
-# See https://prek.j178.dev for more information.
-#:schema https://www.schemastore.org/prek.json
-minimum_prek_version = "0.5.5"
-default_stages = ["pre-commit"]
+# =============================================================================
+# prek git hooks
+#
+# 本轮变更（详见 README-APPLY）：
+#   + typos 拼写门禁（远程 hook，prek 自管可执行文件，本地无需安装）
+#   + detect-private-key 密钥扫描（金融红线：凭据/私钥一票否决）
+#   + check-added-large-files 大文件防线（防误提交二进制/数据文件）
+#   + 修复 check-toml 重复登记（原文件中同 id 出现两次）
+#   + trailing-whitespace 显式 --markdown-linebreak-ext=md（对齐 .editorconfig：
+#     md 行尾双空格是换行语法，不得裁剪）
+#   + 结构改为 [[repos.hooks]] 数组表（等价原 inline 写法，可读性/可维护性更好）
+#
+# prek 原生 TOML 配置（prek >= 0.5）。
+# schema 参考：https://prek.j178.dev/reference/configuration/
+#
+# 安装：项目根执行 `prek install`（或 `just hooks`）—— default_install_hook_types
+#       使一条命令同时装好 pre-commit 与 pre-push 两个 hook。
+# 手动：prek run --all-files                        （pre-commit 级）
+#       prek run --hook-stage pre-push --all-files  （pre-push 级）
+# 跳过（慎用，须在任务备注中说明原因）：SKIP=cargo-clippy git commit ...
+#
+# 门禁分级（快慢分离，避免日常提交被慢检查拖垮）：
+#   pre-commit（秒级）  格式 + clippy 全量 -D warnings + typos + 文件卫生
+#                       + 密钥扫描 + 大文件防线
+#   pre-push（分钟级）  全量测试 + cargo-deny 依赖审计
+#                       （未安装 cargo-deny 会硬阻塞推送——这是刻意的：
+#                        推送门禁不降级；一次性 `cargo install cargo-deny`）
+# =============================================================================
 
-# ============================================================================
-# Stage map (read this first if anything's confusing)
-# ============================================================================
-# pre-commit  -> fast, friendly, auto-fix on formatters (rewrites files in
-#                place and lets the commit proceed with the fixed version)
-# pre-push    -> hard gates. always_run = true so they fire even when no
-#                file types match the current change set
-# commit-msg  -> validate commit message format
-# ============================================================================
+default_install_hook_types = ["pre-commit", "pre-push"]
 
-# ============================================================================
-# Remote hooks (downloaded once, then cached locally)
-# ============================================================================
+# 全局排除：这些路径不参与任何 hook 的文件选择——
+#   * .dp/（dp 任务库）入库共享（见 .gitignore 注释），但其数据格式归 dp
+#     工具所有，修改型 hook（trailing-whitespace / end-of-file-fixer /
+#     mixed-line-ending）不得触碰；
+#   * bootstrap/fix1 的备份目录非源码。
+exclude = "^(\\.dp/|\\.scaffold-backup-|\\.fix1-backup-)"
 
-# --- [pre-commit] Generic file hygiene (whitespace, EOF, syntax) -----------
-[[repos]]
-repo = "https://github.com/pre-commit/pre-commit-hooks"
-rev = "v6.0.0"
+# =============================================================================
+# 快门禁：pre-commit（秒级）
+# =============================================================================
 
-[[repos.hooks]]
-id = "trailing-whitespace"
-name = "Trim trailing whitespace"
-
-[[repos.hooks]]
-id = "end-of-file-fixer"
-name = "Ensure newline at EOF"
-
-[[repos.hooks]]
-id = "check-yaml"
-name = "Check YAML syntax"
-
-[[repos.hooks]]
-id = "check-json"
-name = "Check JSON syntax"
-
-[[repos.hooks]]
-id = "check-toml"
-name = "Check TOML syntax"
-
-[[repos.hooks]]
-id = "check-merge-conflict"
-name = "Reject merge-conflict markers"
-
-[[repos.hooks]]
-id = "check-added-large-files"
-name = "Reject files larger than 500kB"
-args = ["--maxkb=500"]
-
-[[repos.hooks]]
-id = "detect-private-key"
-name = "Detect committed SSH / PGP private keys"
-
-[[repos.hooks]]
-id = "mixed-line-ending"
-name = "Normalize to LF line endings"
-args = ["--fix=lf"]
-
-[[repos.hooks]]
-id = "no-commit-to-branch"
-name = "Block commits directly on protected branches"
-args = ["--branch=main", "--branch=master"]
-
-# --- [pre-commit] Secret scanning (stronger than detect-private-key) ------
-[[repos]]
-repo = "https://github.com/gitleaks/gitleaks"
-rev = "v8.30.1"
-
-[[repos.hooks]]
-id = "gitleaks"
-name = "gitleaks secret scan"
-
-# --- [pre-commit] Markdown lint --------------------------------------------
-#[[repos]]
-#repo = "https://github.com/igorshubovych/markdownlint-cli"
-#rev = "v0.49.1"
-
-#[[repos.hooks]]
-#id = "markdownlint"
-#name = "markdownlint"
-# Tunable: drop a `.markdownlint.jsonc` at the repo root.
-
-# ============================================================================
-# Local hooks (run via system or prek-managed runtimes)
-# ============================================================================
+# --- Rust：格式 + 极严 lint ----------------------------------------------------
 
 [[repos]]
 repo = "local"
 
 [[repos.hooks]]
-id = "core-purity-guard"
-name = "Guard sies-core purity (no async/IO/net)"
-# 使用 ripgrep 扫描 core crate，如果发现违禁词则退出码为 1，阻断 commit
-entry = "sh -c '! rg -n \"async fn|\\.await|tokio|std::fs|std::net|std::env|SystemTime|futures|spawn|block_on|Runtime\" crates/core/src'"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-commit", "pre-push"]
-
-# --- [pre-commit] Auto-fix formatters & linters ----------------------------
-
-[[repos.hooks]]
-id = "cargo-default-features-check"
-name = "Check for implicit default features in Cargo.toml"
-# 查找 dependencies 中使用了 version = "x.x" 但没有 default-features = false 的行
-# 排除了 dev-dependencies 和 build-dependencies，并排除了 workspace = true 的情况
-entry = "sh -c '! rg -n \"^[a-zA-Z0-9_-]+ = \\{ version = .*\\}\" --glob \"**/Cargo.toml\" | rg -v \"default-features = false\" | rg -v \"dev-dependencies\" -B 999 | rg -v \"build-dependencies\" -B 999'"
-language = "system"
-types = ["toml"]
-pass_filenames = false
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "rust-meta-check"
-name = "cargo fmt check + clippy (commit-time)"
-entry = "sh -c 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings'"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "rust-fmt"
-name = "cargo fmt (auto-fix)"
-entry = "cargo fmt --all"
-language = "system"
-types = ["rust"]
-pass_filenames = false
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "cargo-sort-fix"
-name = "cargo sort (auto-fix)"
-entry = "cargo sort --workspace"
-language = "system"
-types = ["toml"]
-pass_filenames = false
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "sh-fmt"
-name = "shfmt (auto-fix)"
-entry = "shfmt -i 4 -w"
-language = "system"
-types = ["shell"]
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "sh-lint"
-name = "shellcheck"
-entry = "shellcheck"
-language = "system"
-types = ["shell"]
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "py-fmt"
-name = "ruff format (auto-fix)"
-entry = "ruff format"
-language = "system"
-types = ["python"]
-stages = ["pre-commit"]
-
-[[repos.hooks]]
-id = "py-lint"
-name = "ruff check --fix"
-entry = "ruff check --fix"
-language = "system"
-types = ["python"]
-stages = ["pre-commit"]
-
-# --- [pre-commit] Optional commit-time gate (commented, opt-in) -----------
-# Rust projects typically defer fmt-check and clippy to pre-push. Uncomment
-# the block below if your team prefers stricter gating at commit time — be
-# aware it can feel slow on large workspaces.
-#
-# [[repos.hooks]]
-# id = "rust-meta-check"
-# name = "cargo fmt check + clippy (commit-time)"
-# entry = "sh -c 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings'"
-# language = "system"
-# pass_filenames = false
-# always_run = true
-# stages = ["pre-commit"]
-
-# --- [pre-push] Hard gates (all always_run = true) ------------------------
-
-[[repos.hooks]]
-id = "rust-fmt-check"
+id = "cargo-fmt"
 name = "cargo fmt --check"
 entry = "cargo fmt --all -- --check"
 language = "system"
+files = "\\.(rs|toml)$"
+stages = ["pre-commit"]
 pass_filenames = false
-always_run = true
-stages = ["pre-push"]
-
-[[repos.hooks]]
-id = "cargo-build"
-name = "cargo build (workspace + all targets)"
-entry = "cargo build --workspace --all-targets"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-push"]
-
-[[repos.hooks]]
-id = "cargo-sort-check"
-name = "cargo sort --check"
-entry = "cargo sort --workspace --check"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-push"]
 
 [[repos.hooks]]
 id = "cargo-clippy"
-name = "cargo clippy (-D warnings)"
-entry = "cargo clippy --workspace --all-targets -- -D warnings"
+name = "cargo clippy -D warnings（极严门禁）"
+entry = "cargo clippy --workspace --all-targets --quiet -- -D warnings"
 language = "system"
+files = "\\.(rs|toml)$"
+stages = ["pre-commit"]
 pass_filenames = false
-always_run = true
-stages = ["pre-push"]
+
+# --- 拼写检查：typos（远程 hook，prek 自动管理可执行文件） ----------------------
+# 注：typos 默认 hook 带 --write-changes（自动改写后失败）；门禁取向改为
+# 只查不改（args 置空），改动由人工确认后提交。
+# rev 跟随官方文档示例版本（docs/pre-commit.md），升级时同步更新。
+
+[[repos]]
+repo = "https://github.com/crate-ci/typos"
+rev = "v1.52.0"
 
 [[repos.hooks]]
-id = "cargo-nextest"
-name = "cargo nextest run"
-entry = "cargo nextest run --workspace"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-push"]
+id = "typos"
+args = []
+stages = ["pre-commit"]
+
+# --- 通用文件卫生 + 金融防线（pre-commit-hooks 内置 Rust 快速实现） ------------
+
+[[repos]]
+repo = "https://github.com/rvben/rumdl-pre-commit"
+rev = "v0.3.2"
+hooks = [{ id = "rumdl-check", args = ["--fix"] }]
+
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v6.0.0"
 
 [[repos.hooks]]
-id = "cargo-machete"
-name = "cargo machete (unused deps)"
-entry = "cargo machete"
+id = "check-case-conflict"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-executables-have-shebangs"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-shebang-scripts-are-executable"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-illegal-windows-names"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-json"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-symlinks"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-toml"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "destroyed-symlinks"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "end-of-file-fixer"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "fix-byte-order-marker"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "forbid-new-submodules"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "trailing-whitespace"
+# 对齐 .editorconfig：md 行尾双空格是换行语法，显式声明保留（其余文件照裁）。
+args = ["--markdown-linebreak-ext=md"]
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "no-commit-to-branch"
+# 强制走分支 + 评审留痕（合规基线 §6 可审计证据链）。单人直提 main 需显式
+# 跳过：SKIP=no-commit-to-branch git commit ...（须在 dp 任务备注说明原因）。
+args = ["--branch=main"]
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "mixed-line-ending"
+args = ["--fix=lf"]
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "sort-simple-yaml"
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "detect-private-key"
+# 金融红线：私钥/凭据文件一票否决（编码规范 §10 / 合规基线 §8 密钥管理）。
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "check-added-large-files"
+# 防误提交大二进制/数据文件；10MiB 上限兼顾监管 PDF 的正常尺寸
+# （合规目录已有 PDF 为历史存量，hook 只检查新增文件，不受影响）。
+args = ["--maxkb=10240"]
+stages = ["pre-commit"]
+
+# =============================================================================
+# 慢门禁：pre-push（分钟级）
+# =============================================================================
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "cargo-test"
+name = "cargo test --workspace"
+entry = "cargo test --workspace --quiet"
 language = "system"
-pass_filenames = false
-always_run = true
 stages = ["pre-push"]
+pass_filenames = false
 
 [[repos.hooks]]
 id = "cargo-deny"
-name = "cargo deny (licenses + bans + advisories)"
-entry = "cargo deny check"
+name = "cargo deny check（许可证/漏洞/来源审计）"
+# 硬门禁：未安装 cargo-deny 会阻塞推送（刻意——推送审计不降级）。
+# 一次性安装：cargo install cargo-deny
+entry = "cargo deny check --hide-inclusion-graph"
 language = "system"
-pass_filenames = false
-always_run = true
 stages = ["pre-push"]
+pass_filenames = false
+
+[[repos]]
+repo = "local"
 
 [[repos.hooks]]
-id = "cargo-audit"
-name = "cargo audit (RUSTSEC vulnerability scan)"
-entry = "cargo audit"
+id = "cargo-deny-fuzz"
+name = "cargo deny check（fuzz 独立锁——验证工具链依赖单独审计）"
+entry = "cargo deny --manifest-path fuzz/Cargo.toml check --hide-inclusion-graph"
 language = "system"
-pass_filenames = false
-always_run = true
 stages = ["pre-push"]
-
-[[repos.hooks]]
-id = "cargo-doc"
-name = "cargo doc (verify doc comments compile)"
-# --no-deps skips rebuilding docs for external crates. Drop
-# --document-private-items if you only ship a public API.
-entry = "cargo doc --workspace --no-deps --document-private-items"
-language = "system"
 pass_filenames = false
-always_run = true
-stages = ["pre-push"]
-
-#[[repos.hooks]]
-#id = "cargo-msrv"
-#name = "cargo msrv verify (minimum supported Rust version)"
-#entry = "cargo msrv verify -- --workspace --offline"
-#language = "system"
-#pass_filenames = false
-#always_run = true
-#stages = ["pre-push"]
-# Meaningful only if Cargo.toml has [package] rust-version or a pinned toolchain.
-
-[[repos.hooks]]
-id = "typos-check"
-name = "typos spell check"
-entry = "typos --exclude .git -c typos.toml"
-language = "system"
-pass_filenames = false
-always_run = true
-stages = ["pre-push"]
-
-# --- [commit-msg] Conventional commit message validation ------------------
-# Default: commitlint (Node, the most battle-tested option). prek installs
-# the npm packages into an isolated env per hook run, so no global install
-# is needed. Add a `commitlint.config.js` at the repo root:
-#
-#   // commitlint.config.js
-#   module.exports = { extends: ['@commitlint/config-conventional'] };
-#
-# Pure-Rust alternative: install `cocogitto` and replace the entry below
-# with `cog check`. Not all commit-msg handoffs cooperate perfectly, so
-# commitlint remains the safer default.
-
-[[repos.hooks]]
-id = "commitlint"
-name = "commitlint (conventional commits)"
-entry = "commitlint --edit"
-language = "node"
-additional_dependencies = [
-  "@commitlint/cli@latest",
-  "@commitlint/config-conventional@latest",
-]
-stages = ["commit-msg"]

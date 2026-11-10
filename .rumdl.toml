@@ -1,0 +1,12 @@
+[MD013]
+# 启用自动重排/换行功能，默认是 false
+reflow = true
+# 可选：设置换行模式，例如 "semantic-line-breaks" 或 "sentence-per-line"
+# reflow-mode = "semantic-line-breaks"
+line-length = 130
+
+[MD036]
+fix = true
+# 以下均为可选，保持默认即可
+heading-level = 2 # 转换后的标题级别，1~6，默认 2（##）
+# heading-style = "atx"  # 目前仅支持 atx 风格（## 标题），一般无需改动
