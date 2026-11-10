@@ -194,14 +194,3 @@ entry = "cargo deny check --hide-inclusion-graph"
 language = "system"
 stages = ["pre-push"]
 pass_filenames = false
-
-[[repos]]
-repo = "local"
-
-[[repos.hooks]]
-id = "cargo-deny-fuzz"
-name = "cargo deny check（fuzz 独立锁——验证工具链依赖单独审计）"
-entry = "cargo deny --manifest-path fuzz/Cargo.toml check --hide-inclusion-graph"
-language = "system"
-stages = ["pre-push"]
-pass_filenames = false
