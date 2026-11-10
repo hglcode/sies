@@ -17,7 +17,7 @@ pub enum DecayError {
     InvalidInput(Decimal),
     #[error("exponential overflow: |{0}| exceeds safe range")]
     Overflow(Decimal),
-    #[error("taylor series failed to converge within {TAYLOR_TERMS} terms")]
+    #[error("taylor series failed to converge")]
     ConvergenceFailure,
 }
 
@@ -42,6 +42,12 @@ impl PheromoneDecay {
     /// # Arguments
     /// * `rho` - 挥发率，取值范围 (0, 1)
     /// * `half_life` - 半衰期，必须 > 0
+    ///
+    /// # Errors
+    /// * [`DecayError::InvalidRho`] - ρ ∉ (0, 1)
+    /// * [`DecayError::InvalidHalfLife`] - `half_life` ≤ 0
+    /// * [`DecayError::InvalidLogDomain`] - ln(1-ρ) 域错误（防御纵深，
+    ///   ρ 已校验 ∈ (0,1) 时不可达）
     pub fn new(rho: Decimal, half_life: Decimal) -> Result<Self, DecayError> {
         if rho <= Decimal::ZERO || rho >= Decimal::ONE {
             return Err(DecayError::InvalidRho(rho));
@@ -51,7 +57,11 @@ impl PheromoneDecay {
         }
 
         // ln(1 - rho)，预计算避免每次 decay_factor 调用重复运算
-        let ln_base = ln_one_minus_x(rho);
+        // #42 整改: 旧 ln_one_minus_x 为 20 项截断级数 -Σ ρⁿ/n，收敛速度随 ρ→1
+        // 急剧恶化（ρ=0.7 截断误差 ~9e-5、ρ=0.9 ~5e-2、ρ=0.99 ~3.9），
+        // 换用全值域精度 ~1e-27 的 ln_deterministic。
+        // 1-ρ ∈ (0,1) 恒正，Err 分支为防御纵深，正常输入不可达。
+        let ln_base = ln_deterministic(Decimal::ONE - rho)?;
 
         Ok(Self {
             rho,
@@ -96,27 +106,6 @@ impl PheromoneDecay {
 }
 
 // ─── 确定性数学近似函数 (ADR #2 compliant) ───────────────────────
-
-/// 泰勒级数项数，20 项对 |x| < 1 的精度远超 Decimal 默认精度
-const TAYLOR_TERMS: usize = 20;
-
-/// 计算 ln(1 - x)，其中 x ∈ (0, 1)
-///
-/// 使用级数: ln(1 - x) = -Σ(x^n / n) for n = 1..∞
-fn ln_one_minus_x(x: Decimal) -> Decimal {
-    debug_assert!(x > Decimal::ZERO && x < Decimal::ONE);
-
-    let mut result = Decimal::ZERO;
-    let mut x_pow_n = x; // x^1
-
-    for n in 1..=TAYLOR_TERMS {
-        let term = x_pow_n / Decimal::from(n);
-        result -= term;
-        x_pow_n *= x;
-    }
-
-    result
-}
 
 /// Taylor 展开计算 e^x（带参数约简）
 ///
@@ -399,18 +388,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ln_one_minus_x_accuracy() {
-        // ln(0.7) ≈ -0.356674943938732
-        let x = Decimal::new(3, 1); // 0.3
-        let result = ln_one_minus_x(x);
-        let expected = Decimal::from_f64(-0.356674943938732).unwrap();
-        assert!(
-            approx_eq(result, expected),
-            "ln(0.7): expected ~{expected}, got {result}"
-        );
-    }
-
-    #[test]
     fn test_exp_taylor_accuracy() {
         // e^(-0.356674943938732) ≈ 0.7
         let x = Decimal::from_f64(-0.356674943938732).unwrap();
@@ -559,5 +536,65 @@ mod tests {
                 "mismatch at {input}: got {result}, expected {expected}, diff={diff}"
             );
         }
+    }
+
+    // ─── #42 整改: 高 ρ 精度测试 ─────────────────────────────────
+
+    #[test]
+    fn test_ln_one_minus_rho_high_precision() {
+        // ln(1-ρ) 高 ρ 对照表 —— 旧 ln_one_minus_x（20 项截断级数）的盲区:
+        // ρ=0.7 截断误差 ~9e-5、ρ=0.9 ~5e-2、ρ=0.99 ~3.9（级数近乎不收敛）
+        let cases: &[(&str, &str)] = &[
+            ("0.5", "-0.693147180559945309417232121"),   // -ln(2)
+            ("0.7", "-1.203972804325935992622746218"),   // ln(3/10)
+            ("0.9", "-2.302585092994045684017991455"),   // -ln(10)
+            ("0.99", "-4.605170185988091368035982909"),  // -2·ln(10)
+            ("0.999", "-6.907755278982137052053974364"), // -3·ln(10)
+        ];
+        let tol = Decimal::new(1, 20); // 1e-20: 比旧误差低 15+ 个数量级
+        for (rho_str, expected_str) in cases {
+            let rho = Decimal::from_str_exact(rho_str).unwrap();
+            let expected = Decimal::from_str_exact(expected_str).unwrap();
+            let result = ln_deterministic(Decimal::ONE - rho).unwrap();
+            let diff = (result - expected).abs();
+            assert!(
+                diff < tol,
+                "ln(1-{rho_str}): got {result}, expected {expected}, diff {diff}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_decay_factor_high_rho_round_trip() {
+        // 回程恒等式: decay_factor(half_life) = exp(ln(1-ρ)) ≅ 1-ρ
+        // 旧实现在此自检即失败（ρ=0.9 偏差 ~5%，ρ=0.99 factor ≈ 0.47 而非 0.01）
+        let tol = Decimal::new(1, 12);
+        for rho_str in ["0.5", "0.7", "0.9", "0.99", "0.999", "0.999999"] {
+            let rho = Decimal::from_str_exact(rho_str).unwrap();
+            let decay = PheromoneDecay::new(rho, Decimal::TEN).unwrap();
+            let factor = decay.decay_factor(Decimal::TEN).unwrap();
+            let expected = Decimal::ONE - rho;
+            let diff = (factor - expected).abs();
+            assert!(
+                diff < tol,
+                "rho={rho_str}: factor {factor}, expected {expected}, diff {diff}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_decay_factor_high_rho_multiple_half_lives() {
+        // n 个半衰期: decay_factor(n·half_life) ≅ (1-ρ)ⁿ
+        let rho = Decimal::from_str_exact("0.9").unwrap();
+        let decay = PheromoneDecay::new(rho, Decimal::TEN).unwrap();
+        let one_minus_rho = Decimal::ONE - rho; // 0.1
+
+        let f2 = decay.decay_factor(Decimal::from(20)).unwrap();
+        let expected2 = one_minus_rho * one_minus_rho;
+        assert!((f2 - expected2).abs() < Decimal::new(1, 12), "f2 {f2}");
+
+        let f3 = decay.decay_factor(Decimal::from(30)).unwrap();
+        let expected3 = expected2 * one_minus_rho;
+        assert!((f3 - expected3).abs() < Decimal::new(1, 12), "f3 {f3}");
     }
 }
