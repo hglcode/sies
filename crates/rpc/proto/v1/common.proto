@@ -1,23 +1,91 @@
 syntax = "proto3";
 package sies.v1;
 
+// ============================================================================
+// SIES 公共契约类型（v1，任务 #30 冻结基线）
+//
+// 版本化策略（契约评审冻结，后续修订必须遵守）：
+// - 主版本随包名走：破坏性变更 → 新包 sies.v2，禁止原地修改 v1 语义
+// - v1 冻结后：字段编号与字段名永不复用，删除字段必须 reserved
+// - REST 侧与 openapi/v1.yaml 同步演进，URL 前缀 /api/v1
+//
+// 数值编码（ADR #2：全链路禁浮点）：
+// - 概率向量：10^18 无符号定点，u64 数组，元素值域 [0, 10^18]
+//   （范本：存储层 RawLedgerEntry.belief_allocations）
+// - 带符号标量（alpha/beta/score）：十进制规范字符串
+// ============================================================================
+
 // 节点/用户唯一标识
 message PeerId {
   bytes id = 1;
 }
 
-// 重构点 1：为 `BeliefVector` 增加元数据，支持算法演进
+// 信念/概率向量 —— 10^18 无符号定点编码（审计 P1-6：消除 RPC 层浮点）
+//
+// 不变量：每个元素 ∈ [0, 10^18]，元素和 = 10^18（归一化）。
+// 与域模型 Belief::allocations() 的定点表示一一对应。
 message BeliefVector {
-  // 如果未来向量维度动态变化，或者使用了不同的量化/编码方式，version 很有用
+  // 编码版本：当前固定 1，解析侧必须校验（≠1 视为契约违规）
   uint32 version = 1;
-  repeated double values = 2;
+  // 定点值数组；JSON 侧按 proto3 惯例将 u64 序列化为字符串
+  // （v1 冻结前由浮点数组原地替换而来，字段编号不变）
+  repeated uint64 values = 2;
 }
 
-// 重构点 2：显式定义阶段（Phase），替代隐式的 round 推断
-// 虽然你决定在 RPC 层不区分 predict/vote，但在“轮次(Round)”的语义上，
-// 演化算法通常分为“探索/变异阶段”和“选择/收敛阶段”。
+// 演化阶段：探索（连续预测）/ 收敛（离散投票）
 enum Phase {
   PHASE_UNSPECIFIED = 0;
-  PHASE_EXPLORATION = 1; // 对应连续的预测/探索
-  PHASE_CONVERGENCE = 2; // 对应离散的投票/收敛
+  PHASE_EXPLORATION = 1;
+  PHASE_CONVERGENCE = 2;
+}
+
+// ---------------------------------------------------------------------------
+// 统一错误模型（审计 P1-6：所有接口共用一套错误码）
+// ---------------------------------------------------------------------------
+
+// 错误码。RPC 侧映射 gRPC status，REST 侧映射 HTTP 状态（见 openapi/v1.yaml）
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_ARGUMENT = 1;   // 参数结构非法 → INVALID_ARGUMENT / 400
+  ERROR_CODE_OUT_OF_RANGE = 2;       // 定点值越界 [0, 10^18] → INVALID_ARGUMENT / 400
+  ERROR_CODE_NOT_FOUND = 3;          // → NOT_FOUND / 404
+  ERROR_CODE_ALREADY_EXISTS = 4;     // 序号冲突/重复提交 → ALREADY_EXISTS / 409
+  ERROR_CODE_UNAUTHENTICATED = 5;    // 缺少提交者认证 → UNAUTHENTICATED / 401
+  ERROR_CODE_SIGNATURE_INVALID = 6;  // 签名校验失败（#45）→ PERMISSION_DENIED / 403
+  ERROR_CODE_UNAVAILABLE = 7;        // 上游不可用 → UNAVAILABLE / 503
+  ERROR_CODE_INTERNAL = 8;           // 内部错误 → INTERNAL / 500
+}
+
+// 结构化错误详情：gRPC status details 与 REST 错误响应体的统一载荷
+message ErrorDetail {
+  ErrorCode code = 1;
+  string message = 2;
+}
+
+// ---------------------------------------------------------------------------
+// 账本条目契约（配合 #45 ed25519 签名层定稿）
+// ---------------------------------------------------------------------------
+
+// ed25519 认证材料。长度契约在此冻结：公钥 32 字节、签名 64 字节
+message EntryAuth {
+  bytes public_key = 1;  // ed25519 公钥，固定 32 字节
+  bytes signature = 2;   // ed25519 签名，固定 64 字节
+}
+
+// 账本条目 —— 与存储层 RawLedgerEntry 一一对应（定点编码完全同源）
+//
+// 签名对象（#45 落地时冻结为实现）：
+//   RawLedgerEntry 的 postcard 规范字节串，即账本落盘记录中 CRC 所覆盖的
+//   同一份 payload —— 签名与持久化共享同一字节源，杜绝二次编码歧义。
+//   auth 本身不参与签名内容。
+message LedgerEntry {
+  uint64 seq = 1;               // 账本序号（从 1 起）
+  uint64 round = 2;             // 演化轮次
+  uint64 user_id = 3;           // 参与者 ID
+  BeliefVector belief = 4;      // 提交的信念向量（定点）
+  BeliefVector outcome = 5;     // 真实结果向量（定点）
+  string new_alpha = 6;         // 更新后 alpha（十进制字符串）
+  string new_beta = 7;          // 更新后 beta（十进制字符串）
+  string score = 8;             // 本轮得分（十进制字符串，可为负）
+  EntryAuth auth = 9;           // 提交者认证（#45 落地前允许缺省）
 }

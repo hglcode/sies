@@ -3,48 +3,32 @@ package sies.v1;
 
 import "v1/common.proto";
 
-// 对等节点间的控制面与状态同步
+// 对等节点间的控制面与账本同步
 service PeerService {
-  // 增量同步 `EventLog` (流式返回)
-  rpc SyncEventLog(SyncEventLogRequest) returns (stream Event);
-  // 广播共识决策结果
+  // 增量同步账本：半开区间 [from_seq, to_seq)，to_seq = 0 表示同步至最新。
+  // 直接流式返回 LedgerEntry（v1 冻结前的 Event/StateCommitment 已并入，
+  // 认证信息由 LedgerEntry.auth 承载）
+  rpc SyncEventLog(SyncEventLogRequest) returns (stream LedgerEntry);
+  // 广播共识决策结果（具体方案由 #49 共识 ADR 冻结）
   rpc BroadcastDecision(DecisionEvent) returns (Ack);
 }
 
 message SyncEventLogRequest {
-  uint64 from_seq = 1;
-  uint64 to_seq = 2;
+  uint64 from_seq = 1;  // 起始序号（含）
+  uint64 to_seq = 2;    // 结束序号（排他）；0 = 至最新
 }
 
-// 重构点 1：将黑盒 `payload` 替换为强类型的统一事件结构
-message Event {
-  uint64 seq = 1;
-  uint64 round = 2;
-
-  // 明确事件的具体类型，利用 oneof 保证类型安全
-  oneof payload {
-    StateCommitment state_commitment = 3; // 其他节点提交的状态
-    // 未来可以轻松扩展其他事件，如：NodeJoined, NodeSlashed 等
-  }
-}
-
-// 提取出来的强类型结构：节点提交的状态及 Verifier 的背书
-message StateCommitment {
-  PeerId node_id = 1;
-  BeliefVector state_vector = 2;
-  bytes verifier_signature = 3; // Verifier 对该 `state_vector` 的签名
-}
-
-// 重构点 2：决策结果也是基于 `BeliefVector` 的聚合
+// 决策事件：聚合后的全局信念/共识向量
 message DecisionEvent {
   uint64 round = 1;
   PeerId proposer = 2;
-
-  // 明确决策的数学本质：聚合后的全局信念/共识向量
-  BeliefVector consensus_vector = 3;
-  bytes signature = 4; // 提议者或阈值签名的证明
+  BeliefVector consensus_vector = 3;  // 10^18 定点
+  // 提议者/阈值签名证明（方案待 #49 冻结，暂保留原始字节）
+  bytes signature = 4;
 }
 
 message Ack {
   bool success = 1;
+  // 失败原因（统一错误模型）
+  ErrorDetail error = 2;
 }

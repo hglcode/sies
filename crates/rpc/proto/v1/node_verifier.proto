@@ -5,26 +5,23 @@ import "v1/common.proto";
 
 // 统一的 `Verifier` 服务，面向核心演化算法的状态提交
 service NodeVerifierService {
-  // 统一提交节点的状态向量（无论是连续的预测还是离散的投票）
-  // `Verifier` 负责验证该向量的合法性（如范围、签名、承诺）并返回可信签名
+  // 统一提交节点的状态向量（连续预测或离散投票均走同一入口）
+  // `Verifier` 负责校验：定点值域、归一化、（#45 起）提交者签名，
+  // 通过后返回 Verifier 的背书签名
   rpc CommitState(CommitStateRequest) returns (CommitStateResponse);
 }
 
 message CommitStateRequest {
-  bytes node_id = 1;        // 提交者 ID (Predictor 或 Voter)
-  uint64 round = 2;         // 当前演化轮次/共识轮次
-
-  // 核心：统一的状态向量
-  // 在 Predict 阶段，它是 [0, 1] 的连续浮点数（通过 `BeliefVector` 传递）
-  // 在 Vote 阶段，它是 {0, 1} 的离散值（同样可以通过 `BeliefVector` 传递，或应用层做离散化校验）
-  BeliefVector state_vector = 3;
-
-  // 可选：如果需要在协议层显式区分阶段（通常建议由 round 的类型或应用层上下文决定）
-  // Phase phase = 4;
+  bytes node_id = 1;              // 提交者 ID (Predictor 或 Voter)
+  uint64 round = 2;               // 当前演化轮次/共识轮次
+  BeliefVector state_vector = 3;  // 状态向量（10^18 定点，值域 [0, 10^18] 且归一化）
+  EntryAuth auth = 4;             // 提交者签名（#45 落地后强制；签名对象见 common.proto）
 }
 
 message CommitStateResponse {
   bool accepted = 1;
-  string rejection_reason = 2; // 如果 rejected，说明原因（如超出 [0,1] 范围、签名无效等）
-  bytes signature = 3;         // `Verifier` 对该 `state_vector` 的可信签名
+  // 拒绝原因（统一错误模型；accepted=false 时必填）
+  ErrorDetail error = 2;
+  // Verifier 对该提交的背书（accepted=true 时必填）
+  EntryAuth endorsement = 3;
 }

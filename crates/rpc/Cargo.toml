@@ -12,6 +12,10 @@ ignored = ["prost", "tonic-prost"]
 prost = "0"
 tonic = "0"
 tonic-prost = "0"
+rust_decimal = { workspace = true }
+sies-core = { path = "../core" }
+sies-storage = { path = "../storage" }
+thiserror = { workspace = true }
 
 [build-dependencies]
 tonic-prost-build = "0"

@@ -1,0 +1,379 @@
+# SIES 网关 REST 契约（OpenAPI 3.1）—— 与 gRPC 契约 sies.v1 同源冻结（任务 #30）
+openapi: 3.1.0
+info:
+  title: SIES Gateway REST API
+  version: 1.0.0
+  description: |
+    SIES 网关 REST 契约，与 crates/rpc/proto/v1 的 gRPC 契约（包名 sies.v1）同源冻结。
+    版本化策略：URL 前缀 /api/v1 与 gRPC 包名对齐；破坏性变更同时升级 /api/v2 与
+    sies.v2；路径名与 proto 字段编号永不复用。
+    数值编码（ADR #2，全链路禁浮点）：
+    - 概率向量元素为 10^18 无符号定点，JSON 编码为字符串，值域 "0" ~ "1000000000000000000"；
+    - 带符号标量（alpha/beta/score）为十进制规范字符串；
+    - u64 整数（seq/round/user_id）按 proto3 JSON 惯例编码为字符串；
+    - 字节字段（公钥/签名/节点 ID）一律小写十六进制字符串。
+    统一错误模型：非 2xx 响应体均为 ErrorResponse，code 与 gRPC ErrorCode 同名。
+    HTTP 映射：INVALID_ARGUMENT / OUT_OF_RANGE → 400；UNAUTHENTICATED → 401；
+    SIGNATURE_INVALID → 403；NOT_FOUND → 404；ALREADY_EXISTS → 409；
+    INTERNAL → 500；UNAVAILABLE → 503。
+servers:
+  - url: /api/v1
+tags:
+  - name: system
+  - name: ledger
+  - name: state
+  - name: verifier
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: 存活探针
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /ledger/last-seq:
+    get:
+      tags: [ledger]
+      operationId: getLedgerLastSeq
+      summary: 账本最高序号（空账本为 "0"）
+      responses:
+        "200":
+          description: 当前最高序号
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LastSeqResponse"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /ledger/entries:
+    get:
+      tags: [ledger]
+      operationId: listLedgerEntries
+      summary: 半开区间 [from_seq, to_seq) 读取账本条目
+      parameters:
+        - name: from_seq
+          in: query
+          required: true
+          description: 起始序号（含）
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+        - name: to_seq
+          in: query
+          required: false
+          description: 结束序号（排他）；缺省为至最新
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+      responses:
+        "200":
+          description: 账本条目列表（按 seq 升序）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LedgerEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /ledger/entries/{seq}:
+    get:
+      tags: [ledger]
+      operationId: getLedgerEntry
+      summary: 按序号读取单条账本条目
+      parameters:
+        - name: seq
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+      responses:
+        "200":
+          description: 账本条目
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /state/{user_id}:
+    get:
+      tags: [state]
+      operationId: getState
+      summary: 读取参与者贝叶斯信誉状态
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+      responses:
+        "200":
+          description: 信誉状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BetaStateResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /state/root:
+    get:
+      tags: [state]
+      operationId: getStateRoot
+      summary: 当前 SMT 状态根与对应账本高度
+      responses:
+        "200":
+          description: 状态根
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StateRootResponse"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /verifier/commit:
+    post:
+      tags: [verifier]
+      operationId: commitState
+      summary: 提交状态向量（与 gRPC NodeVerifierService.CommitState 同构）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitStateRequest"
+      responses:
+        "200":
+          description: 提交结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitStateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+components:
+  responses:
+    BadRequest:
+      description: 参数结构或定点编码非法（INVALID_ARGUMENT / OUT_OF_RANGE）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthenticated:
+      description: 缺少提交者认证（UNAUTHENTICATED）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: 签名校验失败（SIGNATURE_INVALID）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: 目标不存在（NOT_FOUND）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: 序号冲突或重复提交（ALREADY_EXISTS）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Internal:
+      description: 内部错误（INTERNAL）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unavailable:
+      description: 上游不可用（UNAVAILABLE）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    BeliefVector:
+      type: object
+      required: [version, values]
+      description: 信念/概率向量，10^18 无符号定点（与 gRPC sies.v1.BeliefVector 同构）
+      properties:
+        version:
+          type: integer
+          description: 编码版本，当前固定 1
+        values:
+          type: array
+          description: 定点值数组；每个元素 ∈ [0, 10^18]，元素和 = 10^18
+          items:
+            type: string
+            pattern: '^[0-9]+$'
+    EntryAuth:
+      type: object
+      required: [public_key, signature]
+      description: ed25519 认证材料（#45 落地后由网关强制校验）
+      properties:
+        public_key:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: ed25519 公钥（32 字节的小写十六进制）
+        signature:
+          type: string
+          pattern: '^[0-9a-f]{128}$'
+          description: ed25519 签名（64 字节的小写十六进制）
+    LedgerEntry:
+      type: object
+      required: [seq, round, user_id, belief, outcome, new_alpha, new_beta, score]
+      description: 账本条目（与 gRPC sies.v1.LedgerEntry、存储层 RawLedgerEntry 同构）
+      properties:
+        seq:
+          type: string
+          pattern: '^[0-9]+$'
+          description: 账本序号（从 1 起）
+        round:
+          type: string
+          pattern: '^[0-9]+$'
+          description: 演化轮次
+        user_id:
+          type: string
+          pattern: '^[0-9]+$'
+          description: 参与者 ID
+        belief:
+          $ref: "#/components/schemas/BeliefVector"
+        outcome:
+          $ref: "#/components/schemas/BeliefVector"
+        new_alpha:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+          description: 更新后 alpha（十进制字符串）
+        new_beta:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+          description: 更新后 beta（十进制字符串）
+        score:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+          description: 本轮得分（可为负）
+        auth:
+          description: 提交者认证（#45 落地前允许缺省）
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/EntryAuth"
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: 固定为 "ok"
+    LastSeqResponse:
+      type: object
+      required: [last_seq]
+      properties:
+        last_seq:
+          type: string
+          pattern: '^[0-9]+$'
+          description: 账本最高序号；空账本为 "0"
+    BetaStateResponse:
+      type: object
+      required: [user_id, alpha, beta, weight]
+      description: 参与者贝叶斯信誉状态
+      properties:
+        user_id:
+          type: string
+          pattern: '^[0-9]+$'
+        alpha:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+          description: Beta 分布 alpha
+        beta:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+          description: Beta 分布 beta
+        weight:
+          type: string
+          pattern: '^-?[0-9]+(\.[0-9]+)?$'
+          description: 期望权重 alpha/(alpha+beta)
+    StateRootResponse:
+      type: object
+      required: [root_hex, last_seq]
+      properties:
+        root_hex:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: SMT 根哈希（SHA-256，小写十六进制）
+        last_seq:
+          type: string
+          pattern: '^[0-9]+$'
+          description: 该根对应的账本高度
+    CommitStateRequest:
+      type: object
+      required: [node_id, round, state_vector]
+      description: 状态提交（与 gRPC CommitStateRequest 同构）
+      properties:
+        node_id:
+          type: string
+          pattern: '^[0-9a-f]+$'
+          description: 提交者 ID（小写十六进制，偶数长度）
+        round:
+          type: string
+          pattern: '^[0-9]+$'
+          description: 演化轮次
+        state_vector:
+          $ref: "#/components/schemas/BeliefVector"
+        auth:
+          description: 提交者认证（#45 落地后强制）
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/EntryAuth"
+    CommitStateResponse:
+      type: object
+      required: [accepted]
+      description: 提交结果（与 gRPC CommitStateResponse 同构）
+      properties:
+        accepted:
+          type: boolean
+        error:
+          description: 拒绝原因（统一错误模型；accepted=false 时必填）
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/ErrorResponse"
+        endorsement:
+          description: Verifier 背书签名（accepted=true 时必填）
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/EntryAuth"
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      description: 统一错误体（code 与 gRPC ErrorCode 同名）
+      properties:
+        code:
+          type: string
+          enum: [ERROR_CODE_UNSPECIFIED, ERROR_CODE_INVALID_ARGUMENT, ERROR_CODE_OUT_OF_RANGE, ERROR_CODE_NOT_FOUND, ERROR_CODE_ALREADY_EXISTS, ERROR_CODE_UNAUTHENTICATED, ERROR_CODE_SIGNATURE_INVALID, ERROR_CODE_UNAVAILABLE, ERROR_CODE_INTERNAL]
+        message:
+          type: string
