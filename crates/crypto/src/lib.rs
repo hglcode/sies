@@ -1,4 +1,5 @@
 #![no_std] // 确保无隐式 std 依赖，支持嵌入式/Standalone 场景
+extern crate alloc;
 
 /// 密码学哈希器的零成本抽象 Trait
 ///
@@ -24,6 +25,13 @@ pub trait Hasher {
     }
 }
 
+// === 数字签名原语（#45；ADR-6 与 Hasher 同构的零成本抽象）===
+
+mod signature;
+
+#[cfg(feature = "ed25519")]
+mod ed25519_backend;
+
 // === Feature-gated 后端实现 ===
 
 #[cfg(feature = "blake2b")]
@@ -31,6 +39,11 @@ mod blake2b_backend;
 
 #[cfg(feature = "blake2b")]
 pub use blake2b_backend::Blake2bHasher;
+
+#[cfg(feature = "ed25519")]
+pub use ed25519_backend::{Ed25519Backend, Ed25519SecretKey};
+
+pub use signature::{SignatureError, Signer, Verifier};
 
 // 预留未来扩展
 // #[cfg(feature = "sha3")]

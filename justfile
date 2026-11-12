@@ -66,6 +66,10 @@ hooks:
     prek install -c prek.toml
     @echo "hooks 安装完成：pre-commit=fmt+clippy+typos+文件卫生+密钥/大文件防线，pre-push=test+deny"
 
+# #45 验签吞吐基准（验收：验签开销有基准记录；正式 criterion 套件属 #59）
+verify-bench:
+    cargo test -p sies-crypto --features keygen --release -- --ignored verify_throughput_baseline --nocapture
+
 # 本地全量门禁（等价未来 CI 的检查集合，推送前建议跑一次）
 # 未安装的可选工具会提示并跳过——这是本地开发体验的取舍；
 # 推送（pre-push）与发版（rls）门禁不降级。

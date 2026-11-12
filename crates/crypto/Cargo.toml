@@ -8,12 +8,27 @@ license.workspace = true
 [features]
 default = ["blake2b"]
 blake2b = ["dep:blake2b_simd"]
+# ed25519 签名后端（#45）
+ed25519 = ["dep:ed25519-dalek"]
+# 密钥生成（OS 熵源）：keygen 工具与吞吐基准所需
+keygen = ["ed25519", "dep:rand_core"]
 
 [dependencies]
 blake2b_simd = { version = "1", optional = true, default-features = false }
+ed25519-dalek = { workspace = true, optional = true }
+getrandom = { version = "0.4", features = ["sys_rng"] }
+rand_core = { workspace = true, optional = true }
 
 [dev-dependencies]
 hex = { workspace = true }
+clap = { workspace = true }
+# 自引用 dev-dep：为集成测试/示例默认开启 keygen feature（cargo 支持的模式）
+# cargo-machete: ignore
+sies-crypto = { path = ".", features = ["keygen"] }
+
+[[example]]
+name = "keygen"
+required-features = ["keygen"]
 
 [lints]
 workspace = true

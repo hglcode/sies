@@ -30,6 +30,8 @@ pub enum StorageError {
     Io(#[from] std::io::Error),
     #[error("backend error: {0}")]
     Backend(String),
+    #[error("ledger authentication failed: {0}")]
+    Authentication(#[from] LedgerAuthError),
 }
 
 pub type Result<T> = std::result::Result<T, StorageError>;
@@ -63,6 +65,9 @@ pub struct LedgerEntry {
     pub new_beta: Decimal,
     /// Score computed by the scoring rule for this transition.
     pub score: Decimal,
+    /// ed25519 认证材料（#45 认证写入；`None` = 未签名，仅 Standalone 单写者模式合法）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<EntryAuth>,
 }
 
 impl LedgerEntry {
@@ -88,6 +93,7 @@ impl LedgerEntry {
             new_alpha,
             new_beta,
             score,
+            auth: None,
         }
     }
 
@@ -100,6 +106,34 @@ impl LedgerEntry {
     #[must_use]
     pub fn outcome_allocations(&self) -> &[Decimal] {
         self.outcome.allocations()
+    }
+}
+
+/// 条目认证材料：ed25519 公钥 + 签名（#45；长度契约与 #30 RPC 层冻结一致）
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EntryAuth {
+    /// ed25519 验签公钥（32 字节）
+    pub public_key: [u8; 32],
+    pub signature: Vec<u8>, // 长度校验由验签边的 Signature::try_from 拦
+}
+
+/// 认证写入层错误（#45 验收：未签名 / 错签名必须可区分）
+#[derive(Debug, Error)]
+pub enum LedgerAuthError {
+    /// 条目缺少认证材料（未签名写入被拒）
+    #[error("unsigned entry rejected: auth is required in authenticated mode")]
+    UnsignedEntry,
+    /// 验签失败：签名与条目内容/公钥不匹配（篡改或伪造）
+    #[error("signature verification failed")]
+    SignatureMismatch,
+    /// 底层存储错误（规范负载编码失败等）
+    #[error("storage error: {0}")]
+    Storage(Box<StorageError>),
+}
+
+impl From<StorageError> for LedgerAuthError {
+    fn from(e: StorageError) -> Self {
+        Self::Storage(Box::new(e))
     }
 }
 
@@ -116,6 +150,8 @@ pub struct RawLedgerEntry {
     pub new_alpha: i128,
     pub new_beta: i128,
     pub score: i128,
+    /// ed25519 认证（与域侧 [`LedgerEntry::auth`] 同步持久化）
+    pub auth: Option<EntryAuth>,
 }
 
 #[allow(clippy::expect_used)] // value is clamped to valid range before conversion
@@ -167,6 +203,7 @@ impl From<&LedgerEntry> for RawLedgerEntry {
             new_alpha: decimal_to_fixed_signed(e.new_alpha),
             new_beta: decimal_to_fixed_signed(e.new_beta),
             score: decimal_to_fixed_signed(e.score),
+            auth: e.auth.clone(),
         }
     }
 }
@@ -192,7 +229,7 @@ impl From<RawLedgerEntry> for LedgerEntry {
         let outcome =
             Belief::new(outcome_allocs).expect("deserialized outcome must satisfy invariant");
 
-        LedgerEntry::new(
+        let mut entry = LedgerEntry::new(
             r.seq,
             r.round,
             r.user_id,
@@ -201,7 +238,21 @@ impl From<RawLedgerEntry> for LedgerEntry {
             fixed_to_decimal_signed(r.new_alpha),
             fixed_to_decimal_signed(r.new_beta),
             fixed_to_decimal_signed(r.score),
-        )
+        );
+        entry.auth = r.auth;
+        entry
+    }
+}
+
+impl RawLedgerEntry {
+    /// 规范签名负载：`auth` 置空后的 postcard 编码（#30 冻结的签名对象，#45 兑现）。
+    ///
+    /// 签名必须覆盖落盘最终形态（含 seq），因此签名发生在 seq 定稿之后——
+    /// 写入路径见 [`auth_ledger::AuthenticatedLedger`]。
+    pub fn signing_payload(&self) -> Result<Vec<u8>> {
+        let mut bare = self.clone();
+        bare.auth = None;
+        postcard::to_allocvec(&bare).map_err(|e| StorageError::Serialize(e.to_string()))
     }
 }
 
@@ -296,7 +347,8 @@ impl<L: Ledger + ?Sized> Ledger for &L {
 
 pub mod file_ledger;
 pub use file_ledger::FileLedger;
-
+pub mod auth_ledger;
+pub use auth_ledger::AuthenticatedLedger;
 // ---------------------------------------------------------------------------
 // Tests (updated to use Ledger / LedgerEntry)
 // ---------------------------------------------------------------------------

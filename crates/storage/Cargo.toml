@@ -12,6 +12,7 @@ postcard = { workspace = true }
 rust_decimal = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 sies-core = { path = "../core" }
+sies-crypto = { path = "../crypto", features = ["ed25519"] }
 thiserror = { workspace = true }
 [dev-dependencies]
 serde_json = { workspace = true }

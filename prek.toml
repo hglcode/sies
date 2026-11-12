@@ -99,6 +99,7 @@ stages = ["pre-commit"]
 [[repos.hooks]]
 id = "check-shebang-scripts-are-executable"
 stages = ["pre-commit"]
+exclude = '\.rs$'
 
 [[repos.hooks]]
 id = "check-illegal-windows-names"
